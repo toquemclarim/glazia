@@ -8,7 +8,7 @@ import { DespesasFixas } from './pages/DespesasFixas'
 import { Lancamentos } from './pages/Lancamentos'
 import { Login } from './pages/Login'
 import type { ReactNode } from 'react'
-
+///// functions
 function PrivateRoute({ children }: { children: ReactNode }) {
   const { usuario } = useApp()
   if (!usuario) return <Navigate to="/login" replace />
