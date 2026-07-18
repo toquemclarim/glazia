@@ -30,6 +30,7 @@ export interface DespesaFixa {
 export interface Usuario {
   nome: string
   email: string
+  empresaId?: string
 }
 
 export const LINHAS: LinhaProduto[] = ['L. SUPREMA', 'L. GOLD', 'L. Slick']

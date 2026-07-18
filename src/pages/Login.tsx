@@ -5,7 +5,7 @@ import { useTheme } from '../context/ThemeContext'
 import { Moon, Sun } from 'lucide-react'
 
 export function Login() {
-  const { login } = useApp()
+  const { login, error: authError } = useApp()
   const { theme, toggle } = useTheme()
   const navigate = useNavigate()
   const [email, setEmail] = useState('admin@glazia.com.br')
@@ -63,14 +63,16 @@ export function Login() {
               placeholder="••••••••"
             />
           </div>
-          {erro && (
-            <p style={{ color: 'var(--danger)', fontSize: '0.85rem' }}>{erro}</p>
+          {(erro || authError) && (
+            <p style={{ color: 'var(--danger)', fontSize: '0.85rem' }}>
+              {erro || authError}
+            </p>
           )}
           <button type="submit" className="btn btn-accent" style={{ width: '100%', marginTop: '0.5rem' }}>
             Entrar
           </button>
         </form>
-        <p className="login-hint">Protótipo de demonstração — qualquer senha funciona</p>
+        <p className="login-hint">Acesso seguro por Supabase Auth</p>
       </div>
     </div>
   )

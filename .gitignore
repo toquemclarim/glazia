@@ -1,23 +1,135 @@
-# Logs
-logs
+# ---------------------------------------------------------------------------
+# Segredos e configuração local
+# ---------------------------------------------------------------------------
+**/.env
+**/.env.*
+!**/.env.example
+!**/.env.*.example
+*.local
+
+# Tokens de registries e arquivos de autenticação local
+**/.npmrc
+**/.yarnrc
+**/.netrc
+**/_netrc
+
+# Chaves privadas, certificados e cofres
+*.pem
+*.key
+*.p8
+*.p12
+*.pfx
+*.jks
+*.keystore
+*.kdbx
+*.mobileprovision
+
+# Credenciais de provedores e service accounts
+credentials*.json
+credential*.json
+service-account*.json
+service_account*.json
+gcp-key*.json
+firebase-adminsdk*.json
+application_default_credentials.json
+secrets/
+**/secrets/
+credentials/
+**/credentials/
+
+# ---------------------------------------------------------------------------
+# Dependências, builds, cobertura e caches
+# ---------------------------------------------------------------------------
+**/node_modules/
+**/dist/
+**/dist-ssr/
+**/build/
+**/out/
+**/coverage/
+**/.nyc_output/
+**/.cache/
+**/.parcel-cache/
+**/.turbo/
+**/.vite/
+**/.eslintcache
+*.tsbuildinfo
+
+# Supabase local
+supabase/.branches/
+supabase/.temp/
+supabase/.env
+supabase/.env.*
+!supabase/.env.example
+
+# Testes e automação de navegador
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
+screenshots/
+
+# ---------------------------------------------------------------------------
+# Logs, processos e arquivos temporários
+# ---------------------------------------------------------------------------
+logs/
+**/logs/
 *.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
+*.pid
+*.pid.lock
+*.seed
+*.tmp
+*.temp
+*.bak
+*.backup
+*.orig
+*.rej
+*.stackdump
 
-node_modules
-dist
-dist-ssr
-*.local
+# Bancos e dumps locais
+*.sqlite
+*.sqlite3
+*.sqlite-*
+*.db-journal
+*.sql.gz
+*.dump
 
-# Editor directories and files
+# Infraestrutura como código
+**/.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# ---------------------------------------------------------------------------
+# IDE, assistentes e sistema operacional
+# ---------------------------------------------------------------------------
 .vscode/*
 !.vscode/extensions.json
-.idea
+.idea/
+.history/
+.cursor/mcp.json
+.cursor/*.local.*
+.claude/settings.local.json
 .DS_Store
+.AppleDouble
+.LSOverride
+Thumbs.db
+Thumbs.db:encryptable
+Desktop.ini
+$RECYCLE.BIN/
 *.suo
+*.user
+*.userosscache
+*.sln.docstates
 *.ntvs*
 *.njsproj
 *.sln

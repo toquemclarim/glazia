@@ -1,0 +1,66 @@
+# Versionamento e metadados locais
+.git
+.gitignore
+.github
+.vscode
+.idea
+.cursor
+.claude
+
+# Segredos: nunca copie arquivos de ambiente ou credenciais para a imagem
+**/.env
+**/.env.*
+**/.npmrc
+**/.yarnrc
+**/.netrc
+**/_netrc
+**/secrets
+**/secrets/**
+**/credentials
+**/credentials/**
+**/*credentials*.json
+**/service-account*.json
+**/service_account*.json
+**/gcp-key*.json
+**/firebase-adminsdk*.json
+**/application_default_credentials.json
+**/*.pem
+**/*.key
+**/*.p8
+**/*.p12
+**/*.pfx
+**/*.jks
+**/*.keystore
+**/*.kdbx
+
+# Dependências e saídas geradas
+**/node_modules
+**/dist
+**/dist-ssr
+**/build
+**/out
+**/coverage
+**/.cache
+**/.turbo
+**/.vite
+**/*.tsbuildinfo
+
+# Logs, testes, documentação gerada e temporários
+**/*.log
+**/*.pid
+**/*.tmp
+**/*.temp
+**/*.bak
+test-results
+playwright-report
+screenshots
+docs
+
+# Dados locais
+supabase/.branches
+supabase/.temp
+**/*.sqlite
+**/*.sqlite3
+**/*.db-journal
+**/*.dump
+**/*.sql.gz

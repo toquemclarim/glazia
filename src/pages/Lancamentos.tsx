@@ -5,7 +5,12 @@ import { LINHAS, MATERIAIS, PRODUTOS, type TipoMovimento } from '../types'
 import { formatCurrency, formatDate } from '../utils/format'
 
 export function Lancamentos() {
-  const { lancamentos, addLancamento, removeLancamento } = useApp()
+  const {
+    lancamentos,
+    addLancamento,
+    removeLancamento,
+    error,
+  } = useApp()
   const [tipo, setTipo] = useState<TipoMovimento>('entrada')
   const [linha, setLinha] = useState(LINHAS[0])
   const [produto, setProduto] = useState(PRODUTOS[0])
@@ -25,22 +30,26 @@ export function Lancamentos() {
     setTimeout(() => setOk(false), 2200)
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     const num = Number(valor.replace(',', '.'))
     if (!cliente.trim() || !num || num <= 0) return
 
-    addLancamento({
-      tipo,
-      linha,
-      produto,
-      cliente: cliente.trim(),
-      descricao: descricao.trim() || `${produto} — ${linha}`,
-      valor: num,
-      material: tipo === 'saida' ? material : undefined,
-      data,
-    })
-    reset()
+    try {
+      await addLancamento({
+        tipo,
+        linha,
+        produto,
+        cliente: cliente.trim(),
+        descricao: descricao.trim() || `${produto} — ${linha}`,
+        valor: num,
+        material: tipo === 'saida' ? material : undefined,
+        data,
+      })
+      reset()
+    } catch {
+      // O contexto expõe a mensagem segura retornada pela API.
+    }
   }
 
   return (
@@ -51,6 +60,11 @@ export function Lancamentos() {
           {ok && (
             <span style={{ color: 'var(--success)', fontSize: '0.85rem', fontWeight: 600 }}>
               Lançamento registrado
+            </span>
+          )}
+          {error && (
+            <span style={{ color: 'var(--danger)', fontSize: '0.85rem', fontWeight: 600 }}>
+              {error}
             </span>
           )}
         </div>
@@ -200,7 +214,7 @@ export function Lancamentos() {
                   <td>
                     <button
                       className="btn-icon"
-                      onClick={() => removeLancamento(l.id)}
+                      onClick={() => void removeLancamento(l.id)}
                       aria-label="Excluir"
                       title="Excluir"
                     >
