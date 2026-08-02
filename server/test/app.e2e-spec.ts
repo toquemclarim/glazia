@@ -8,8 +8,14 @@ describe('AppController (e2e)', () => {
   let app: INestApplication<App>;
 
   beforeEach(async () => {
-    process.env.SUPABASE_URL = 'https://example.supabase.co';
-    process.env.SUPABASE_PUBLISHABLE_KEY = 'test-publishable-key';
+    process.env.DATABASE_URL =
+      process.env.DATABASE_URL ??
+      'postgresql://postgres:postgres@127.0.0.1:54322/postgres';
+    process.env.DB_SCHEMA = 'analytics';
+    process.env.DB_CATALOG_SCHEMA = 'dt_catalogo';
+    process.env.JWT_SECRET = 'test-secret-at-least-16';
+    process.env.JWT_EXPIRES_IN = '1h';
+    process.env.AUTH_DEMO_USERS = '[]';
     process.env.CORS_ORIGIN = 'http://localhost:5173';
 
     const moduleFixture: TestingModule = await Test.createTestingModule({

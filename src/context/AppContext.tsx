@@ -7,149 +7,152 @@ import {
   useState,
   type ReactNode,
 } from 'react'
-import { seedDespesas } from '../data/seed'
 import {
-  criarLancamento,
-  excluirLancamento,
-  listarLancamentos,
-  obterCatalogos,
+  getAccessToken,
+  loginApi,
   obterUsuario,
-  type Catalogos,
+  setAccessToken,
+  signupApi,
+  type SignupPayload,
 } from '../services/api'
 import {
-  isSupabaseConfigured,
-  requireSupabase,
-  supabase,
-} from '../services/supabase'
-import type { DespesaFixa, Lancamento, Usuario } from '../types'
-import { uid } from '../utils/format'
+  entitlementsFor,
+  type PlanEntitlements,
+} from '../lib/plan'
+import type { Cargo, Usuario } from '../types'
 
 interface AppState {
   usuario: Usuario | null
-  lancamentos: Lancamento[]
-  despesas: DespesaFixa[]
-  catalogos: Catalogos | null
   loading: boolean
   error: string | null
-  login: (email: string, senha: string) => Promise<boolean>
+  bootstrapping: boolean
+  login: (email: string, senha: string) => Promise<Usuario | null>
+  signup: (payload: SignupPayload) => Promise<Usuario | null>
+  /** Dono do SaaS — console /ops */
+  isPlatform: boolean
   logout: () => void
+  aplicarSessao: (accessToken: string, usuario: Usuario) => void
   navigateWithLoading: (navigate: () => void) => void
-  addLancamento: (data: Omit<Lancamento, 'id'>) => Promise<void>
-  removeLancamento: (id: string) => Promise<void>
-  addDespesa: (data: Omit<DespesaFixa, 'id'>) => void
-  updateDespesa: (id: string, data: Partial<DespesaFixa>) => void
-  removeDespesa: (id: string) => void
+  /** Diretor e Sócio — análise financeira. */
+  podeAnalisar: boolean
+  /** ADM e Diretor — lançamentos e clientes. */
+  podeOperar: boolean
+  /** Só Diretor — despesas fixas, vencimentos e caixa. */
+  podeGestaoFinanceira: boolean
+  /** Só Diretor — usuários da empresa (Equipe). */
+  podeGestaoEquipe: boolean
+  /** Limites do plano da empresa. */
+  plano: PlanEntitlements
+  podeChat: boolean
+  /** Digitação livre no chat — só Pro. */
+  podeChatLivre: boolean
+  podeExportar: boolean
+  /** Empresa em trial / inativa (para banner e modal). */
+  emTrial: boolean
+  trialDiasRestantes: number | null
+  empresaBloqueada: boolean
 }
 
 const AppContext = createContext<AppState | null>(null)
 
-const DESPESAS_STORAGE_KEY = 'glazia-despesas-demo-v1'
+function cargoPermiteAnalise(cargo: Cargo) {
+  return cargo === 'DIRETOR' || cargo === 'SOCIO'
+}
 
-function loadDespesas(): DespesaFixa[] {
-  try {
-    const raw = localStorage.getItem(DESPESAS_STORAGE_KEY)
-    return raw ? (JSON.parse(raw) as DespesaFixa[]) : seedDespesas
-  } catch {
-    return seedDespesas
-  }
+function cargoPermiteOperar(cargo: Cargo) {
+  return cargo === 'ADM' || cargo === 'DIRETOR' || cargo === 'VENDAS'
+}
+
+function cargoPermiteGestaoFinanceira(cargo: Cargo) {
+  return cargo === 'DIRETOR'
+}
+
+function cargoPermiteGestaoEquipe(cargo: Cargo) {
+  return cargo === 'DIRETOR'
 }
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const [usuario, setUsuario] = useState<Usuario | null>(null)
-  const [lancamentos, setLancamentos] = useState<Lancamento[]>([])
-  const [despesas, setDespesas] = useState<DespesaFixa[]>(loadDespesas)
-  const [catalogos, setCatalogos] = useState<Catalogos | null>(null)
   const [loading, setLoading] = useState(false)
+  const [bootstrapping, setBootstrapping] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    localStorage.setItem(DESPESAS_STORAGE_KEY, JSON.stringify(despesas))
-  }, [despesas])
-
-  const hydrateAuthenticatedState = useCallback(async () => {
-    const [usuarioReal, lancamentosReais, catalogosReais] = await Promise.all([
-      obterUsuario(),
-      listarLancamentos(),
-      obterCatalogos(),
-    ])
-    setUsuario(usuarioReal)
-    setLancamentos(lancamentosReais)
-    setCatalogos(catalogosReais)
-  }, [])
-
-  useEffect(() => {
-    if (!supabase) return
-
     let active = true
-    setLoading(true)
-    supabase.auth
-      .getSession()
-      .then(async ({ data }) => {
-        if (active && data.session) {
-          await hydrateAuthenticatedState()
-        }
-      })
-      .catch((cause: unknown) => {
-        if (active) {
-          setError(
-            cause instanceof Error
-              ? cause.message
-              : 'Falha ao restaurar a sessão',
-          )
-        }
-      })
-      .finally(() => {
-        if (active) setLoading(false)
-      })
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((event) => {
-      if (event === 'SIGNED_OUT') {
-        setUsuario(null)
-        setLancamentos([])
-        setCatalogos(null)
+    async function restoreSession() {
+      const token = getAccessToken()
+      if (!token) {
+        if (active) setBootstrapping(false)
+        return
       }
-    })
 
+      try {
+        const user = await obterUsuario()
+        if (active) setUsuario(user)
+      } catch {
+        setAccessToken(null)
+        if (active) setUsuario(null)
+      } finally {
+        if (active) setBootstrapping(false)
+      }
+    }
+
+    void restoreSession()
     return () => {
       active = false
-      subscription.unsubscribe()
     }
-  }, [hydrateAuthenticatedState])
+  }, [])
 
   const login = useCallback(async (email: string, senha: string) => {
     setLoading(true)
     setError(null)
     try {
-      if (!isSupabaseConfigured) {
-        throw new Error(
-          'Supabase não configurado. Preencha o arquivo .env.local.',
-        )
-      }
-      const client = requireSupabase()
-      const { error: signInError } = await client.auth.signInWithPassword({
-        email,
-        password: senha,
-      })
-      if (signInError) throw signInError
-      await hydrateAuthenticatedState()
-      return true
+      const result = await loginApi(email, senha)
+      setAccessToken(result.accessToken)
+      setUsuario(result.usuario)
+      return result.usuario
     } catch (cause) {
+      setAccessToken(null)
+      setUsuario(null)
       setError(
         cause instanceof Error ? cause.message : 'Não foi possível entrar',
       )
-      return false
+      return null
     } finally {
       setLoading(false)
     }
-  }, [hydrateAuthenticatedState])
+  }, [])
+
+  const signup = useCallback(async (payload: SignupPayload) => {
+    setLoading(true)
+    setError(null)
+    try {
+      const result = await signupApi(payload)
+      setAccessToken(result.accessToken)
+      setUsuario(result.usuario)
+      return result.usuario
+    } catch (cause) {
+      setAccessToken(null)
+      setUsuario(null)
+      setError(
+        cause instanceof Error ? cause.message : 'Não foi possível criar a conta',
+      )
+      return null
+    } finally {
+      setLoading(false)
+    }
+  }, [])
 
   const logout = useCallback(() => {
+    setAccessToken(null)
     setUsuario(null)
-    setLancamentos([])
-    setCatalogos(null)
-    void supabase?.auth.signOut()
+    setError(null)
+  }, [])
+
+  const aplicarSessao = useCallback((accessToken: string, user: Usuario) => {
+    setAccessToken(accessToken)
+    setUsuario(user)
   }, [])
 
   const navigateWithLoading = useCallback((navigate: () => void) => {
@@ -160,123 +163,50 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }, 550)
   }, [])
 
-  const addLancamento = useCallback(
-    async (data: Omit<Lancamento, 'id'>) => {
-      setLoading(true)
-      setError(null)
-      try {
-        const produto = catalogos?.produtos.find(
-          (item) =>
-            item.nome_produto === data.produto &&
-            item.linha_produto === data.linha,
-        ) ?? catalogos?.produtos.find(
-          (item) => item.nome_produto === data.produto,
-        )
-        const plano = catalogos?.planoContas.find((item) =>
-          data.tipo === 'entrada'
-            ? item.tipo_conta === 'RECEITA'
-            : item.tipo_conta === 'CUSTO',
-        )
-        const descricao = data.material
-          ? `${data.descricao} — ${data.material}`
-          : data.descricao
-        const criado = await criarLancamento({
-          tipo: data.tipo === 'entrada' ? 'ENTRADA' : 'SAIDA',
-          clienteNome: data.cliente,
-          idProduto: produto?.id,
-          idPlanoContas: plano?.id,
-          descricao,
-          valor: data.valor.toFixed(2),
-          dataLancamento: data.data,
-          status: 'REALIZADO',
-        })
-        setLancamentos((prev) => [criado, ...prev])
-
-        if (
-          catalogos &&
-          !catalogos.clientes.some(
-            (cliente) =>
-              cliente.nome.toLocaleLowerCase() ===
-              data.cliente.toLocaleLowerCase(),
-          )
-        ) {
-          setCatalogos(await obterCatalogos())
-        }
-      } catch (cause) {
-        const message =
-          cause instanceof Error
-            ? cause.message
-            : 'Não foi possível criar o lançamento'
-        setError(message)
-        throw cause
-      } finally {
-        setLoading(false)
-      }
-    },
-    [catalogos],
-  )
-
-  const removeLancamento = useCallback(async (id: string) => {
-    setError(null)
-    try {
-      await excluirLancamento(id)
-      setLancamentos((prev) => prev.filter((l) => l.id !== id))
-    } catch (cause) {
-      const message =
-        cause instanceof Error
-          ? cause.message
-          : 'Não foi possível excluir o lançamento'
-      setError(message)
-      throw cause
+  const value = useMemo(() => {
+    const plano =
+      usuario?.cargo === 'PLATFORM'
+        ? entitlementsFor('PRO')
+        : entitlementsFor(usuario?.plano)
+    const status = usuario?.statusAssinatura
+    return {
+      usuario,
+      loading: loading || bootstrapping,
+      error,
+      bootstrapping,
+      login,
+      signup,
+      logout,
+      aplicarSessao,
+      navigateWithLoading,
+      podeAnalisar: usuario ? cargoPermiteAnalise(usuario.cargo) : false,
+      podeOperar: usuario ? cargoPermiteOperar(usuario.cargo) : false,
+      podeGestaoFinanceira: usuario
+        ? cargoPermiteGestaoFinanceira(usuario.cargo)
+        : false,
+      podeGestaoEquipe: usuario
+        ? cargoPermiteGestaoEquipe(usuario.cargo)
+        : false,
+      isPlatform: usuario?.cargo === 'PLATFORM',
+      plano,
+      podeChat: plano.chat,
+      podeChatLivre: plano.chatLivre,
+      podeExportar: plano.export,
+      emTrial: status === 'trial',
+      trialDiasRestantes: usuario?.trialDiasRestantes ?? null,
+      empresaBloqueada: Boolean(usuario?.empresaBloqueada),
     }
-  }, [])
-
-  const addDespesa = useCallback((data: Omit<DespesaFixa, 'id'>) => {
-    setDespesas((prev) => [{ ...data, id: uid() }, ...prev])
-  }, [])
-
-  const updateDespesa = useCallback((id: string, data: Partial<DespesaFixa>) => {
-    setDespesas((prev) => prev.map((d) => (d.id === id ? { ...d, ...data } : d)))
-  }, [])
-
-  const removeDespesa = useCallback((id: string) => {
-    setDespesas((prev) => prev.filter((d) => d.id !== id))
-  }, [])
-
-  const value = useMemo(
-    () => ({
-      usuario,
-      lancamentos,
-      despesas,
-      catalogos,
-      loading,
-      error,
-      login,
-      logout,
-      navigateWithLoading,
-      addLancamento,
-      removeLancamento,
-      addDespesa,
-      updateDespesa,
-      removeDespesa,
-    }),
-    [
-      usuario,
-      lancamentos,
-      despesas,
-      catalogos,
-      loading,
-      error,
-      login,
-      logout,
-      navigateWithLoading,
-      addLancamento,
-      removeLancamento,
-      addDespesa,
-      updateDespesa,
-      removeDespesa,
-    ],
-  )
+  }, [
+    usuario,
+    loading,
+    bootstrapping,
+    error,
+    login,
+    signup,
+    logout,
+    aplicarSessao,
+    navigateWithLoading,
+  ])
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>
 }

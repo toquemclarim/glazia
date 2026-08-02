@@ -1,12 +1,16 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { AnalyticsModule } from './analytics/analytics.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
-import { CatalogosModule } from './catalogos/catalogos.module';
+import { CatalogoModule } from './catalogo/catalogo.module';
 import { validateEnvironment } from './config/env';
+import { DatabaseModule } from './database/database.module';
+import { ClientesModule } from './clientes/clientes.module';
+import { DespesasFixasModule } from './despesas-fixas/despesas-fixas.module';
 import { LancamentosModule } from './lancamentos/lancamentos.module';
-import { SupabaseModule } from './supabase/supabase.module';
+import { PlatformModule } from './platform/platform.module';
 
 @Module({
   imports: [
@@ -14,10 +18,14 @@ import { SupabaseModule } from './supabase/supabase.module';
       isGlobal: true,
       validate: validateEnvironment,
     }),
-    SupabaseModule,
+    DatabaseModule,
     AuthModule,
-    CatalogosModule,
+    AnalyticsModule,
+    CatalogoModule,
+    ClientesModule,
     LancamentosModule,
+    DespesasFixasModule,
+    PlatformModule,
   ],
   controllers: [AppController],
   providers: [AppService],

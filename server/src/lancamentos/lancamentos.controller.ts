@@ -3,57 +3,62 @@ import {
   Controller,
   Delete,
   Get,
-  HttpCode,
-  HttpStatus,
   Param,
-  ParseUUIDPipe,
+  Patch,
   Post,
   Query,
-  Req,
 } from '@nestjs/common';
-import type { AuthenticatedRequest } from '../auth/auth-context';
-import { CreateLancamentoDto } from './dto/create-lancamento.dto';
-import { ListLancamentosDto } from './dto/list-lancamentos.dto';
+import type { AuthContext } from '../auth/auth-context';
+import { CurrentAuth } from '../auth/current-auth.decorator';
+import {
+  AtualizarVendaDto,
+  CriarCustoDto,
+  CriarVendaDto,
+  ListarVendasQueryDto,
+} from './dto/lancamentos.dto';
 import { LancamentosService } from './lancamentos.service';
 
 @Controller('lancamentos')
 export class LancamentosController {
   constructor(private readonly lancamentosService: LancamentosService) {}
 
-  @Get()
-  listar(
-    @Req() request: AuthenticatedRequest,
-    @Query() filtros: ListLancamentosDto,
+  /** Lista vendas recentes para associar custos (com busca). */
+  @Get('vendas')
+  listarVendas(
+    @CurrentAuth() auth: AuthContext,
+    @Query() query: ListarVendasQueryDto,
   ) {
-    return this.lancamentosService.listar(
-      request.supabase,
-      request.auth.empresaId,
-      filtros,
-    );
+    return this.lancamentosService.listarVendas(auth, query);
   }
 
-  @Post()
-  criar(
-    @Req() request: AuthenticatedRequest,
-    @Body() dto: CreateLancamentoDto,
-  ) {
-    return this.lancamentosService.criar(
-      request.supabase,
-      request.auth.empresaId,
-      dto,
-    );
+  @Get('vendas/:id')
+  obterVenda(@CurrentAuth() auth: AuthContext, @Param('id') id: string) {
+    return this.lancamentosService.obterVenda(auth, id);
   }
 
-  @Delete(':id')
-  @HttpCode(HttpStatus.NO_CONTENT)
-  remover(
-    @Req() request: AuthenticatedRequest,
-    @Param('id', new ParseUUIDPipe()) id: string,
+  /** Grava fato_venda + itens + custos opcionais + previsão de caixa. */
+  @Post('vendas')
+  criarVenda(@CurrentAuth() auth: AuthContext, @Body() body: CriarVendaDto) {
+    return this.lancamentosService.criarVenda(auth, body);
+  }
+
+  @Patch('vendas/:id')
+  atualizarVenda(
+    @CurrentAuth() auth: AuthContext,
+    @Param('id') id: string,
+    @Body() body: AtualizarVendaDto,
   ) {
-    return this.lancamentosService.remover(
-      request.supabase,
-      request.auth.empresaId,
-      id,
-    );
+    return this.lancamentosService.atualizarVenda(auth, id, body);
+  }
+
+  @Delete('vendas/:id')
+  excluirVenda(@CurrentAuth() auth: AuthContext, @Param('id') id: string) {
+    return this.lancamentosService.excluirVenda(auth, id);
+  }
+
+  /** Grava fato_custos_operacionais (estoque ou associado a venda). */
+  @Post('custos')
+  criarCusto(@CurrentAuth() auth: AuthContext, @Body() body: CriarCustoDto) {
+    return this.lancamentosService.criarCusto(auth, body);
   }
 }

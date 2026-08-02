@@ -1,4 +1,5 @@
 import { Controller, Get } from '@nestjs/common';
+import { AuthService } from './auth/auth.service';
 import { CurrentAuth } from './auth/current-auth.decorator';
 import type { AuthContext } from './auth/auth-context';
 import { Public } from './auth/public.decorator';
@@ -6,7 +7,10 @@ import { AppService } from './app.service';
 
 @Controller()
 export class AppController {
-  constructor(private readonly appService: AppService) {}
+  constructor(
+    private readonly appService: AppService,
+    private readonly authService: AuthService,
+  ) {}
 
   @Public()
   @Get('health')
@@ -14,14 +18,9 @@ export class AppController {
     return this.appService.getHealth();
   }
 
+  /** Compat: mesmo payload de /auth/me (inclui plano da empresa). */
   @Get('me')
   getMe(@CurrentAuth() auth: AuthContext) {
-    return {
-      id: auth.userId,
-      email: auth.email,
-      nomeCompleto: auth.nomeCompleto,
-      cargo: auth.cargo,
-      empresaId: auth.empresaId,
-    };
+    return this.authService.me(auth);
   }
 }

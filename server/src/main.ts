@@ -23,6 +23,8 @@ async function bootstrap() {
       .split(',')
       .map((origin) => origin.trim()),
     credentials: true,
+    methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
   });
   app.setGlobalPrefix('api/v1');
   app.useGlobalPipes(

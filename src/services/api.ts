@@ -1,121 +1,107 @@
-import type { Lancamento, Usuario } from '../types'
-import { requireSupabase } from './supabase'
+import type {
+  AtualizarClientePayload,
+  AtualizarDespesaFixaPayload,
+  CatalogoCustoItem,
+  CatalogoProdutoItem,
+  Cliente,
+  ContaAVencer,
+  ContasAPagar,
+  CriarClientePayload,
+  CriarCustoPayload,
+  CriarDespesaFixaPayload,
+  CriarUsuarioEquipePayload,
+  CriarUsuarioEquipeResponse,
+  CriarVendaPayload,
+  CustosFixos,
+  DespesaFixaCadastro,
+  EmpresaPlatform,
+  HistoricoPagamentoItem,
+  PainelSocios,
+  PlatformResumo,
+  PlanoAssinatura,
+  ProjecaoMetas,
+  ProximoVencimento,
+  QuantidadeProdutoResponse,
+  Rentabilidade,
+  ResultadoMensal,
+  StatusAssinatura,
+  Usuario,
+  UsuarioEquipe,
+  VendaResumo,
+} from '../types'
 
 const API_URL =
   import.meta.env.VITE_API_URL?.replace(/\/$/, '') ??
   'http://localhost:3000/api/v1'
 
-export interface CatalogoItem {
-  id: string
+export const TOKEN_STORAGE_KEY = 'glazia-jwt-token'
+
+export function getAccessToken(): string | null {
+  return localStorage.getItem(TOKEN_STORAGE_KEY)
 }
 
-export interface Catalogos {
-  clientes: Array<CatalogoItem & { nome: string }>
-  fornecedores: Array<CatalogoItem & { nome_fornecedor: string }>
-  produtos: Array<
-    CatalogoItem & {
-      nome_produto: string
-      linha_produto: string | null
-      tipo_item: string
-    }
-  >
-  projetos: Array<
-    CatalogoItem & {
-      nome_obra: string
-      status: string
-      id_cliente: string
-    }
-  >
-  planoContas: Array<
-    CatalogoItem & {
-      tipo_conta: string
-      categoria: string
-      subcategoria: string | null
-    }
-  >
-}
-
-export interface CreateLancamentoInput {
-  tipo: 'ENTRADA' | 'SAIDA'
-  clienteNome: string
-  idProduto?: string
-  idPlanoContas?: string
-  descricao: string
-  valor: string
-  dataLancamento: string
-  status: 'REALIZADO'
-}
-
-interface ApiLancamento {
-  id: string
-  tipo: 'ENTRADA' | 'SAIDA'
-  descricao: string
-  valor: string | number
-  data_lancamento: string
-  clientes: { nome: string } | Array<{ nome: string }> | null
-  produtos:
-    | {
-        nome_produto: string
-        linha_produto: string | null
-      }
-    | Array<{
-        nome_produto: string
-        linha_produto: string | null
-      }>
-    | null
-}
-
-function relation<T>(value: T | T[] | null): T | null {
-  if (Array.isArray(value)) return value[0] ?? null
-  return value
-}
-
-function mapLancamento(row: ApiLancamento): Lancamento {
-  const cliente = relation(row.clientes)
-  const produto = relation(row.produtos)
-
-  return {
-    id: row.id,
-    tipo: row.tipo === 'ENTRADA' ? 'entrada' : 'saida',
-    linha: (produto?.linha_produto ?? 'Sem linha') as Lancamento['linha'],
-    produto: (produto?.nome_produto ?? 'Não informado') as Lancamento['produto'],
-    cliente: cliente?.nome ?? 'Não informado',
-    descricao: row.descricao,
-    valor: Number(row.valor),
-    data: row.data_lancamento,
+export function setAccessToken(token: string | null) {
+  if (!token) {
+    localStorage.removeItem(TOKEN_STORAGE_KEY)
+    return
   }
+  localStorage.setItem(TOKEN_STORAGE_KEY, token)
 }
 
 async function apiRequest<T>(
   path: string,
   init: RequestInit = {},
+  authenticated = true,
 ): Promise<T> {
-  const supabase = requireSupabase()
-  const {
-    data: { session },
-  } = await supabase.auth.getSession()
-
-  if (!session?.access_token) {
-    throw new Error('Sessão expirada. Entre novamente.')
+  const headers: Record<string, string> = {
+    ...(init.headers as Record<string, string> | undefined),
   }
 
-  const response = await fetch(`${API_URL}${path}`, {
-    ...init,
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${session.access_token}`,
-      ...init.headers,
-    },
-  })
+  // Nest rejeita Content-Type: application/json sem body.
+  // Só envia o header quando há corpo na requisição.
+  if (init.body != null && headers['Content-Type'] == null) {
+    headers['Content-Type'] = 'application/json'
+  }
+
+  if (authenticated) {
+    const token = getAccessToken()
+    if (!token) {
+      throw new Error('Sessão expirada. Entre novamente.')
+    }
+    headers.Authorization = `Bearer ${token}`
+  }
+
+  let response: Response
+  try {
+    response = await fetch(`${API_URL}${path}`, {
+      ...init,
+      headers,
+    })
+  } catch {
+    throw new Error(
+      'Não foi possível conectar à API. Verifique se o servidor está no ar.',
+    )
+  }
 
   if (!response.ok) {
+    // Sessão revalidada no servidor: token inválido/usuário inativo → limpa local.
+    if (authenticated && response.status === 401) {
+      setAccessToken(null)
+    }
     const body = (await response.json().catch(() => null)) as {
       message?: string | string[]
+      code?: string
     } | null
     const message = Array.isArray(body?.message)
       ? body.message.join(', ')
       : body?.message
-    throw new Error(message ?? `Erro HTTP ${response.status}`)
+    const err = new Error(message ?? `Erro HTTP ${response.status}`) as Error & {
+      code?: string
+      status?: number
+    }
+    err.code = body?.code
+    err.status = response.status
+    throw err
   }
 
   if (response.status === 204) {
@@ -125,39 +111,510 @@ async function apiRequest<T>(
   return response.json() as Promise<T>
 }
 
+export interface LoginResponse {
+  accessToken: string
+  usuario: Usuario
+}
+
+export async function loginApi(
+  email: string,
+  password: string,
+): Promise<LoginResponse> {
+  return apiRequest<LoginResponse>(
+    '/auth/login',
+    {
+      method: 'POST',
+      body: JSON.stringify({ email, password }),
+    },
+    false,
+  )
+}
+
+export type SignupPayload = {
+  nomeFantasia: string
+  razaoSocial?: string
+  cnpj?: string
+  nomeDiretor: string
+  telefone: string
+  emailContato: string
+  emailLogin: string
+  senha: string
+  confirmarSenha: string
+  aceitouTermos: boolean
+}
+
+export async function signupApi(payload: SignupPayload): Promise<LoginResponse> {
+  return apiRequest<LoginResponse>(
+    '/auth/signup',
+    {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    },
+    false,
+  )
+}
+
 export async function obterUsuario(): Promise<Usuario> {
-  const data = await apiRequest<{
-    email: string | null
-    nomeCompleto: string | null
-    empresaId: string
-  }>('/me')
-
-  return {
-    nome: data.nomeCompleto ?? data.email?.split('@')[0] ?? 'Usuário',
-    email: data.email ?? '',
-    empresaId: data.empresaId,
-  }
+  return apiRequest<Usuario>('/auth/me')
 }
 
-export async function obterCatalogos(): Promise<Catalogos> {
-  return apiRequest<Catalogos>('/catalogos')
+function withMes(path: string, mes?: string) {
+  if (!mes) return path
+  const separator = path.includes('?') ? '&' : '?'
+  return `${path}${separator}mes=${encodeURIComponent(mes)}`
 }
 
-export async function listarLancamentos(): Promise<Lancamento[]> {
-  const rows = await apiRequest<ApiLancamento[]>('/lancamentos?limite=200')
-  return rows.map(mapLancamento)
+export async function obterResultado(mes?: string): Promise<ResultadoMensal> {
+  return apiRequest<ResultadoMensal>(withMes('/analytics/resultado', mes))
 }
 
-export async function criarLancamento(
-  input: CreateLancamentoInput,
-): Promise<Lancamento> {
-  const row = await apiRequest<ApiLancamento>('/lancamentos', {
-    method: 'POST',
-    body: JSON.stringify(input),
+export async function obterRentabilidade(mes?: string): Promise<Rentabilidade> {
+  return apiRequest<Rentabilidade>(withMes('/analytics/rentabilidade', mes))
+}
+
+export async function obterCustosFixos(mes?: string): Promise<CustosFixos> {
+  return apiRequest<CustosFixos>(withMes('/analytics/custos-fixos', mes))
+}
+
+export async function obterContasAVencer(
+  mes?: string,
+): Promise<{ mes: string; itens: ContaAVencer[] }> {
+  return apiRequest(withMes('/analytics/contas-a-vencer', mes))
+}
+
+export async function obterContasAPagar(dias = 45): Promise<ContasAPagar> {
+  return apiRequest<ContasAPagar>(`/analytics/contas-a-pagar?dias=${dias}`)
+}
+
+export async function obterProjecaoMetas(mes?: string): Promise<ProjecaoMetas> {
+  return apiRequest<ProjecaoMetas>(withMes('/analytics/projecao-metas', mes))
+}
+
+export async function obterPainelSocios(mes?: string): Promise<PainelSocios> {
+  return apiRequest<PainelSocios>(withMes('/analytics/painel-socios', mes))
+}
+
+export async function marcarContaRecebida(idTransacao: string) {
+  return apiRequest<{
+    idTransacao: string
+    dataPagamento: string
+    competencia: string
+    valorRecebido: number
+    mensagem: string
+  }>(
+    `/analytics/contas-a-receber/${encodeURIComponent(idTransacao)}/marcar-recebido`,
+    { method: 'POST', body: JSON.stringify({}) },
+  )
+}
+
+export async function obterQuantidadeProduto(
+  produto: string,
+  mes?: string,
+): Promise<QuantidadeProdutoResponse> {
+  const base = `/analytics/quantidade-produto?produto=${encodeURIComponent(produto)}`
+  return apiRequest<QuantidadeProdutoResponse>(withMes(base, mes))
+}
+
+export async function alterarSenhaConta(payload: {
+  senhaAtual: string
+  senhaNova: string
+  confirmarSenha: string
+}) {
+  return apiRequest<{
+    accessToken: string
+    usuario: Usuario
+    mensagem: string
+  }>('/conta/senha', {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
   })
-  return mapLancamento(row)
 }
 
-export async function excluirLancamento(id: string): Promise<void> {
-  await apiRequest<void>(`/lancamentos/${id}`, { method: 'DELETE' })
+export async function alterarEmailConta(payload: {
+  novoEmail: string
+  senhaAtual: string
+}) {
+  return apiRequest<{ accessToken: string; usuario: Usuario }>('/conta/email', {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  })
 }
+
+/* —— Platform Ops (dono do SaaS) —— */
+
+export async function obterPlatformResumo() {
+  return apiRequest<PlatformResumo>('/platform/resumo')
+}
+
+export async function listarPlatformEmpresas() {
+  return apiRequest<EmpresaPlatform[]>('/platform/empresas')
+}
+
+export async function obterPlatformEmpresa(id: string) {
+  return apiRequest<EmpresaPlatform>(
+    `/platform/empresas/${encodeURIComponent(id)}`,
+  )
+}
+
+export async function criarPlatformEmpresa(payload: {
+  nomeFantasia: string
+  cnpj?: string
+  plano: PlanoAssinatura
+  status: 'ativa' | 'trial'
+  contatoNome?: string
+  contatoEmail?: string
+  contatoTelefone?: string
+  observacao?: string
+  diretorNome: string
+  diretorEmail: string
+  diretorSenhaTemporaria: string
+  comCustosIniciais?: boolean
+}) {
+  return apiRequest<{
+    empresa: EmpresaPlatform
+    diretor: {
+      idUser: string
+      email: string
+      nomeCompleto: string
+      cargo: string
+    }
+    senhaTemporaria: string
+    custosIniciais?: number
+  }>('/platform/empresas', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function atualizarPlatformEmpresa(
+  id: string,
+  payload: Partial<{
+    nomeFantasia: string
+    cnpj: string
+    plano: PlanoAssinatura
+    contatoNome: string
+    contatoEmail: string | null
+    contatoTelefone: string | null
+    observacao: string | null
+  }>,
+) {
+  return apiRequest<EmpresaPlatform>(
+    `/platform/empresas/${encodeURIComponent(id)}`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    },
+  )
+}
+
+export async function alterarStatusPlatformEmpresa(
+  id: string,
+  status: StatusAssinatura,
+) {
+  return apiRequest<EmpresaPlatform>(
+    `/platform/empresas/${encodeURIComponent(id)}/status`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify({ status }),
+    },
+  )
+}
+
+/* —— Equipe (DIRETOR — usuários da própria empresa) —— */
+
+export async function listarEquipe(): Promise<UsuarioEquipe[]> {
+  return apiRequest<UsuarioEquipe[]>('/equipe/usuarios')
+}
+
+export async function criarUsuarioEquipe(
+  payload: CriarUsuarioEquipePayload,
+): Promise<CriarUsuarioEquipeResponse> {
+  return apiRequest<CriarUsuarioEquipeResponse>('/equipe/usuarios', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function alterarAtivoUsuarioEquipe(
+  idUser: string,
+  ativo: boolean,
+): Promise<UsuarioEquipe> {
+  return apiRequest<UsuarioEquipe>(
+    `/equipe/usuarios/${encodeURIComponent(idUser)}/ativo`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify({ ativo }),
+    },
+  )
+}
+
+/* —— Catálogo (dt_catalogo — só opções do CRUD) —— */
+
+export async function listarLinhasCatalogo() {
+  return apiRequest<{ itens: Array<{ linha: string; quantidadeSkus: number }> }>(
+    '/catalogo/linhas',
+  )
+}
+
+export async function listarLinhasCustoCatalogo(tipoCusto?: string) {
+  const qs = tipoCusto
+    ? `?${new URLSearchParams({ tipoCusto })}`
+    : ''
+  return apiRequest<{ itens: Array<{ linha: string; quantidade: number }> }>(
+    `/catalogo/custos/linhas${qs}`,
+  )
+}
+
+export async function listarProdutosCatalogo(params: {
+  linha?: string
+  produto?: string
+  q?: string
+} = {}) {
+  const qs = new URLSearchParams()
+  if (params.linha) qs.set('linha', params.linha)
+  if (params.produto) qs.set('produto', params.produto)
+  if (params.q) qs.set('q', params.q)
+  const suffix = qs.toString() ? `?${qs}` : ''
+  return apiRequest<{
+    produtosDisponiveis: string[]
+    coresDisponiveis: string[]
+    itens: CatalogoProdutoItem[]
+  }>(`/catalogo/produtos${suffix}`)
+}
+
+export async function listarTiposCustoCatalogo() {
+  return apiRequest<{ itens: Array<{ tipoCusto: string; quantidade: number }> }>(
+    '/catalogo/tipos-custo',
+  )
+}
+
+export async function listarCustosCatalogo(params: {
+  tipoCusto?: string
+  linha?: string
+  q?: string
+  idProduto?: string
+} = {}) {
+  const qs = new URLSearchParams()
+  if (params.tipoCusto) qs.set('tipoCusto', params.tipoCusto)
+  if (params.linha) qs.set('linha', params.linha)
+  if (params.q) qs.set('q', params.q)
+  if (params.idProduto) qs.set('idProduto', params.idProduto)
+  const suffix = qs.toString() ? `?${qs}` : ''
+  return apiRequest<{ itens: CatalogoCustoItem[] }>(`/catalogo/custos${suffix}`)
+}
+
+/* —— Lançamentos → grava no dataset analytics —— */
+
+export async function listarVendasLancamento(q?: string) {
+  const suffix = q?.trim() ? `?q=${encodeURIComponent(q.trim())}` : ''
+  return apiRequest<{ itens: VendaResumo[] }>(`/lancamentos/vendas${suffix}`)
+}
+
+export async function criarVendaLancamento(payload: CriarVendaPayload) {
+  return apiRequest<{
+    idVenda: string
+    dataVenda: string
+    dataPrevisaoRecebimento: string
+    valorTotal: number
+    qtdItens: number
+    qtdGastos: number
+    mensagem: string
+  }>('/lancamentos/vendas', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function obterVendaLancamento(idVenda: string) {
+  return apiRequest<{
+    idVenda: string
+    idCliente: string | null
+    cliente: string | null
+    dataVenda: string
+    dataPrevisaoRecebimento: string
+    observacao: string | null
+    valorTotal: number
+    status: string
+    jaRecebido: boolean
+    itens: Array<{
+      idVendaItem: string
+      idProdutoCatalogo: number
+      linha: string
+      produto: string
+      cor: string
+      unidadeVenda: string
+      quantidade: number
+      valorUnitario: number
+      gastos: Array<{
+        idCustoCatalogo: number
+        descricao: string
+        tipoCusto: string | null
+        linha: string | null
+        valor: number
+      }>
+    }>
+  }>(`/lancamentos/vendas/${encodeURIComponent(idVenda)}`)
+}
+
+export async function atualizarVendaLancamento(
+  idVenda: string,
+  payload: CriarVendaPayload,
+) {
+  return apiRequest<{
+    idVenda: string
+    dataVenda: string
+    dataPrevisaoRecebimento: string
+    valorTotal: number
+    qtdItens: number
+    qtdGastos: number
+    mensagem: string
+  }>(`/lancamentos/vendas/${encodeURIComponent(idVenda)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function excluirVendaLancamento(idVenda: string) {
+  return apiRequest<{ idVenda: string; mensagem: string }>(
+    `/lancamentos/vendas/${encodeURIComponent(idVenda)}`,
+    { method: 'DELETE' },
+  )
+}
+
+export async function criarCustoLancamento(payload: CriarCustoPayload) {
+  return apiRequest<{
+    idCusto: string
+    associadoAVenda: boolean
+    idVenda: string | null
+    destino: string
+    mensagem: string
+  }>('/lancamentos/custos', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+/* —— Clientes —— */
+export async function listarClientes(
+  q?: string,
+  opts?: { incluirInativos?: boolean; status?: 'ativos' | 'inativos' | 'todos' },
+) {
+  const params = new URLSearchParams()
+  if (q?.trim()) params.set('q', q.trim())
+  if (opts?.status) {
+    params.set('status', opts.status)
+  } else if (opts?.incluirInativos) {
+    params.set('status', 'todos')
+  }
+  const suffix = params.toString() ? `?${params}` : ''
+  return apiRequest<{ itens: Cliente[]; status?: string }>(`/clientes${suffix}`)
+}
+
+export async function obterCliente(id: string) {
+  return apiRequest<Cliente>(`/clientes/${encodeURIComponent(id)}`)
+}
+
+export async function criarCliente(payload: CriarClientePayload) {
+  return apiRequest<Cliente & { mensagem: string; matricula: string }>(
+    '/clientes',
+    {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    },
+  )
+}
+
+export async function atualizarCliente(
+  id: string,
+  payload: AtualizarClientePayload,
+) {
+  return apiRequest<Cliente & { mensagem: string }>(
+    `/clientes/${encodeURIComponent(id)}`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    },
+  )
+}
+
+export async function desativarCliente(id: string) {
+  return apiRequest<{ id: string; mensagem: string }>(
+    `/clientes/${encodeURIComponent(id)}/desativar`,
+    { method: 'POST', body: JSON.stringify({}) },
+  )
+}
+
+export async function reativarCliente(id: string) {
+  return apiRequest<{ id: string; mensagem: string }>(
+    `/clientes/${encodeURIComponent(id)}/reativar`,
+    { method: 'POST', body: JSON.stringify({}) },
+  )
+}
+
+/* —— Despesas fixas —— */
+export async function listarDespesasFixas() {
+  return apiRequest<{
+    itens: DespesaFixaCadastro[]
+    totalMensal: number
+    maiorCusto: DespesaFixaCadastro | null
+  }>('/despesas-fixas')
+}
+
+export async function listarProximosVencimentos(dias = 5) {
+  return apiRequest<{
+    dias: number
+    itens: ProximoVencimento[]
+    total: number
+  }>(`/despesas-fixas/proximos-vencimentos?dias=${dias}`)
+}
+
+export async function marcarDespesaPaga(id: string, idTransacao?: string) {
+  return apiRequest<{
+    idPagamento: string
+    dataPagamento: string
+    competencia: string
+    valorPago: number
+    mensagem: string
+  }>(`/despesas-fixas/${encodeURIComponent(id)}/marcar-pago`, {
+    method: 'POST',
+    body: JSON.stringify(idTransacao ? { idTransacao } : {}),
+  })
+}
+
+export async function historicoPagamentosDespesa(id: string) {
+  return apiRequest<{
+    despesa: DespesaFixaCadastro
+    itens: HistoricoPagamentoItem[]
+  }>(`/despesas-fixas/${encodeURIComponent(id)}/historico-pagamentos`)
+}
+
+export async function criarDespesaFixa(payload: CriarDespesaFixaPayload) {
+  return apiRequest<DespesaFixaCadastro & { mensagem: string }>(
+    '/despesas-fixas',
+    {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    },
+  )
+}
+
+export async function atualizarDespesaFixa(
+  id: string,
+  payload: AtualizarDespesaFixaPayload,
+) {
+  return apiRequest<DespesaFixaCadastro & { mensagem: string }>(
+    `/despesas-fixas/${encodeURIComponent(id)}`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    },
+  )
+}
+
+export async function removerDespesaFixa(id: string) {
+  return apiRequest<{ mensagem: string; id: string }>(
+    `/despesas-fixas/${encodeURIComponent(id)}`,
+    { method: 'DELETE' },
+  )
+}
+

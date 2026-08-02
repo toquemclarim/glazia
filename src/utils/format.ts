@@ -9,6 +9,18 @@ export function formatCurrency(value: number): string {
   })
 }
 
+/** Remove IDs/códigos internos (vnd_, ctl_, etc.) de textos da interface. */
+export function textoSemCodigoInterno(texto: string | null | undefined): string {
+  if (!texto) return ''
+  return texto
+    .replace(/\bRecebimento previsto da venda\s+\S+/gi, 'Recebimento previsto de venda')
+    .replace(/\bVenda\s+(vnd_|vit_|flx_)[a-zA-Z0-9]+/gi, 'Venda')
+    .replace(/\b(vnd_|vit_|flx_|ctl_|custo_cat_|pc_)[a-zA-Z0-9_-]+/gi, '')
+    .replace(/\s{2,}/g, ' ')
+    .replace(/[\s·/|,;:.–—-]+$/g, '')
+    .trim()
+}
+
 export function formatDate(dateStr: string): string {
   try {
     return format(parseISO(dateStr), 'dd/MM/yyyy')

@@ -6,21 +6,16 @@ import {
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import type { FastifyRequest } from 'fastify';
-import { SupabaseService } from '../supabase/supabase.service';
 import type { AuthenticatedRequest } from './auth-context';
+import { ALLOW_INACTIVE_KEY } from './allow-inactive.decorator';
+import { AuthService } from './auth.service';
 import { IS_PUBLIC_KEY } from './public.decorator';
-
-interface PerfilRow {
-  id_empresa: string;
-  nome_completo: string | null;
-  cargo: string | null;
-}
 
 @Injectable()
 export class AuthGuard implements CanActivate {
   constructor(
     private readonly reflector: Reflector,
-    private readonly supabaseService: SupabaseService,
+    private readonly authService: AuthService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -34,36 +29,21 @@ export class AuthGuard implements CanActivate {
     }
 
     const request = context.switchToHttp().getRequest<FastifyRequest>();
-    const accessToken = this.extractBearerToken(request);
-    const user = await this.supabaseService.getUser(accessToken);
+    const token = this.extractBearerToken(request);
+    const auth = await this.authService.resolveAuthFromToken(token);
 
-    if (!user) {
-      throw new UnauthorizedException('Sessão inválida ou expirada');
+    const authenticatedRequest = request as AuthenticatedRequest &
+      FastifyRequest;
+    authenticatedRequest.auth = auth;
+
+    const allowInactive = this.reflector.getAllAndOverride<boolean>(
+      ALLOW_INACTIVE_KEY,
+      [context.getHandler(), context.getClass()],
+    );
+
+    if (!allowInactive) {
+      await this.authService.assertEmpresaOperacional(auth);
     }
-
-    const userClient = this.supabaseService.forAccessToken(accessToken);
-    const { data, error } = await userClient
-      .from('perfis')
-      .select('id_empresa,nome_completo,cargo')
-      .eq('id', user.id)
-      .maybeSingle<PerfilRow>();
-
-    if (error || !data?.id_empresa) {
-      throw new UnauthorizedException(
-        'Usuário autenticado sem empresa vinculada',
-      );
-    }
-
-    const authenticatedRequest = request as AuthenticatedRequest;
-    authenticatedRequest.auth = {
-      userId: user.id,
-      email: user.email ?? null,
-      empresaId: data.id_empresa,
-      nomeCompleto: data.nome_completo,
-      cargo: data.cargo,
-      accessToken,
-    };
-    authenticatedRequest.supabase = userClient;
 
     return true;
   }
