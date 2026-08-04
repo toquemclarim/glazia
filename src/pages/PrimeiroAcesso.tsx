@@ -3,6 +3,7 @@ import { useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useApp } from '../context/AppContext'
 import { alterarSenhaConta } from '../services/api'
+import { queueWelcomeScreen } from '../utils/welcome'
 
 export function PrimeiroAcesso() {
   const { usuario, aplicarSessao, logout } = useApp()
@@ -42,7 +43,8 @@ export function PrimeiroAcesso() {
         ...res.usuario,
         deveTrocarSenha: false,
       })
-      navigate('/home', { replace: true })
+      queueWelcomeScreen()
+      navigate('/boas-vindas', { replace: true })
     } catch (cause) {
       setErro(
         cause instanceof Error

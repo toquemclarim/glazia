@@ -5124,11 +5124,38 @@ table.data tr:hover td {
   display: grid;
   place-items: center;
   padding: 1.5rem 1rem 2.5rem;
+  color: var(--text);
+  background: var(--bg-base);
 }
 
 .signup-card {
   width: min(560px, 100%);
   padding: 1.6rem 1.4rem 1.5rem;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  color: var(--text);
+  opacity: 1;
+}
+
+.signup-card-in {
+  animation: signupCardIn 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes signupCardIn {
+  from {
+    transform: translateY(14px);
+  }
+  to {
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .signup-card-in {
+    animation: none;
+  }
 }
 
 .signup-back {
@@ -5145,17 +5172,48 @@ table.data tr:hover td {
   color: var(--accent);
 }
 
+.signup-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  margin-bottom: 0.85rem;
+}
+
+.signup-brand img {
+  display: block;
+  width: 28px;
+  height: auto;
+  object-fit: contain;
+  mix-blend-mode: normal;
+  background: transparent;
+}
+
+.signup-brand span {
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  font-size: 1.05rem;
+  color: var(--text);
+}
+
 .signup-logo {
   display: block;
   height: 42px;
   width: auto;
   margin-bottom: 0.85rem;
   object-fit: contain;
+  mix-blend-mode: normal;
+}
+
+[data-theme='light'] .signup-logo,
+[data-theme='light'] .signup-brand img {
+  mix-blend-mode: normal;
+  filter: none;
 }
 
 .signup-card h1 {
   margin: 0;
   font-size: 1.55rem;
+  color: var(--text);
 }
 
 .signup-sub {
@@ -5165,9 +5223,30 @@ table.data tr:hover td {
   font-size: 0.95rem;
 }
 
+.signup-card .field label,
+.signup-card .field input,
+.signup-card .field-hint,
+.signup-terms,
+.signup-login,
+.signup-group-title {
+  opacity: 1;
+}
+
 .signup-form {
   display: grid;
   gap: 0.85rem;
+}
+
+.signup-card .field label {
+  color: var(--text-muted);
+}
+
+.signup-card .field input,
+.signup-card .field select,
+.signup-card .field textarea {
+  color: var(--text);
+  background: var(--bg-input);
+  border-color: var(--border);
 }
 
 .signup-group-title {

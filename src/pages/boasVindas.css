@@ -1,0 +1,215 @@
+/* —— Boas-vindas (pós-senha, pré-home) —— */
+.welcome-page {
+  --welcome-ink: #1a1612;
+  --welcome-muted: #5a534b;
+  --welcome-accent: #9a7349;
+  --welcome-accent-strong: #7f5d39;
+  --welcome-bg: #f7f4ef;
+
+  position: relative;
+  isolation: isolate;
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 1.5rem 1.15rem 2.25rem;
+  color: var(--welcome-ink);
+  background:
+    radial-gradient(ellipse 70% 50% at 85% -5%, rgba(201, 160, 106, 0.22), transparent 55%),
+    radial-gradient(ellipse 50% 40% at 0% 100%, rgba(154, 115, 73, 0.1), transparent 50%),
+    var(--welcome-bg);
+  font-family: 'League Spartan', system-ui, sans-serif;
+  overflow-x: hidden;
+}
+
+[data-theme='dark'] .welcome-page {
+  --welcome-ink: #f4efe8;
+  --welcome-muted: #b8b0a6;
+  --welcome-accent: #c9a06a;
+  --welcome-accent-strong: #a88b68;
+  --welcome-bg: #0a0908;
+  background:
+    radial-gradient(ellipse 70% 50% at 85% -5%, rgba(201, 160, 106, 0.16), transparent 55%),
+    radial-gradient(ellipse 50% 40% at 0% 100%, rgba(154, 115, 73, 0.1), transparent 50%),
+    var(--welcome-bg);
+}
+
+.welcome-glow {
+  position: absolute;
+  inset: auto 10% 8%;
+  height: 40%;
+  background: radial-gradient(ellipse at center, rgba(154, 115, 73, 0.12), transparent 65%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.welcome-shell {
+  position: relative;
+  z-index: 1;
+  width: min(560px, 100%);
+  animation: welcome-rise 0.65s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes welcome-rise {
+  from {
+    transform: translateY(16px);
+  }
+  to {
+    transform: none;
+  }
+}
+
+.welcome-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.65rem;
+  margin-bottom: 1.75rem;
+}
+
+.welcome-brand img {
+  display: block;
+  width: 28px;
+  height: auto;
+  background: transparent;
+}
+
+.welcome-brand span {
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  font-size: 1.05rem;
+}
+
+.welcome-kicker {
+  margin: 0 0 0.55rem;
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--welcome-accent);
+}
+
+.welcome-shell h1 {
+  margin: 0;
+  font-size: clamp(1.85rem, 5vw, 2.45rem);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.12;
+}
+
+.welcome-lead {
+  margin: 0.85rem 0 0;
+  max-width: 36rem;
+  color: var(--welcome-muted);
+  font-size: 1.05rem;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.welcome-steps {
+  list-style: none;
+  margin: 2rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 1rem;
+}
+
+.welcome-steps li {
+  display: grid;
+  grid-template-columns: auto auto 1fr;
+  gap: 0.75rem;
+  align-items: start;
+  padding: 1rem 0 1rem;
+  border-top: 1px solid color-mix(in srgb, var(--welcome-ink) 10%, transparent);
+  animation: welcome-rise 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.welcome-steps li:last-child {
+  border-bottom: 1px solid color-mix(in srgb, var(--welcome-ink) 10%, transparent);
+}
+
+.welcome-step-num {
+  font-size: 1.35rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: var(--welcome-accent);
+  line-height: 1;
+  min-width: 2ch;
+}
+
+.welcome-step-icon {
+  width: 40px;
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  color: var(--welcome-accent-strong);
+  background: color-mix(in srgb, var(--welcome-accent) 14%, transparent);
+}
+
+.welcome-steps h2 {
+  margin: 0 0 0.3rem;
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.welcome-steps p {
+  margin: 0;
+  color: var(--welcome-muted);
+  font-size: 0.92rem;
+  font-weight: 500;
+  line-height: 1.45;
+}
+
+.welcome-actions {
+  margin-top: 1.85rem;
+}
+
+.welcome-cta {
+  width: 100%;
+  min-height: 50px;
+  justify-content: center;
+  font-weight: 700;
+  background: var(--welcome-accent) !important;
+  border-color: transparent !important;
+  color: #fff !important;
+}
+
+.welcome-cta:hover {
+  background: var(--welcome-accent-strong) !important;
+}
+
+.welcome-micro {
+  margin: 0.9rem 0 0;
+  text-align: center;
+  font-size: 0.86rem;
+  color: var(--welcome-muted);
+  font-weight: 500;
+}
+
+@media (min-width: 720px) {
+  .welcome-shell {
+    width: min(640px, 100%);
+  }
+
+  .welcome-cta {
+    width: auto;
+    min-width: 240px;
+  }
+
+  .welcome-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .welcome-micro {
+    text-align: left;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .welcome-shell,
+  .welcome-steps li {
+    animation: none !important;
+  }
+}

@@ -18,6 +18,12 @@ export class AppController {
     return this.appService.getHealth();
   }
 
+  @Public()
+  @Get('health/db')
+  getDbHealth() {
+    return this.appService.getDbHealth();
+  }
+
   /** Compat: mesmo payload de /auth/me (inclui plano da empresa). */
   @Get('me')
   getMe(@CurrentAuth() auth: AuthContext) {

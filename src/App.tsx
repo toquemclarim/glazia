@@ -14,12 +14,17 @@ import { DespesasFixas } from './pages/DespesasFixas'
 import { Equipe } from './pages/Equipe'
 import { Home } from './pages/Home'
 import { Lancamentos } from './pages/Lancamentos'
+import { BoasVindas } from './pages/BoasVindas'
 import { Landing } from './pages/Landing'
 import { Login } from './pages/Login'
 import { PrimeiroAcesso } from './pages/PrimeiroAcesso'
 import { OpsEmpresas } from './pages/ops/OpsEmpresas'
 import { OpsLayout } from './pages/ops/OpsLayout'
 import { OpsLogin } from './pages/ops/OpsLogin'
+import {
+  hasQueuedWelcome,
+  hasSeenWelcome,
+} from './utils/welcome'
 
 function PrivateRoute({
   children,
@@ -38,6 +43,9 @@ function PrivateRoute({
   if (usuario.deveTrocarSenha) {
     return <Navigate to="/primeiro-acesso" replace />
   }
+  if (hasQueuedWelcome() && !hasSeenWelcome(usuario.id)) {
+    return <Navigate to="/boas-vindas" replace />
+  }
   if (allow === false) return <Navigate to="/home" replace />
   return <Layout>{children}</Layout>
 }
@@ -48,8 +56,26 @@ function PrimeiroAcessoRoute() {
   if (!usuario) return <Navigate to="/login" replace />
   if (isPlatform) return <Navigate to="/ops" replace />
   if (empresaBloqueada) return <EmpresaInativaModal />
-  if (!usuario.deveTrocarSenha) return <Navigate to="/home" replace />
+  if (!usuario.deveTrocarSenha) {
+    if (hasQueuedWelcome()) return <Navigate to="/boas-vindas" replace />
+    return <Navigate to="/home" replace />
+  }
   return <PrimeiroAcesso />
+}
+
+function BoasVindasRoute() {
+  const { usuario, bootstrapping, isPlatform, empresaBloqueada } = useApp()
+  if (bootstrapping) return null
+  if (!usuario) return <Navigate to="/login" replace />
+  if (isPlatform) return <Navigate to="/ops" replace />
+  if (empresaBloqueada) return <EmpresaInativaModal />
+  if (usuario.deveTrocarSenha) {
+    return <Navigate to="/primeiro-acesso" replace />
+  }
+  if (!hasQueuedWelcome() && hasSeenWelcome(usuario.id)) {
+    return <Navigate to="/home" replace />
+  }
+  return <BoasVindas />
 }
 
 function OpsRoute({ children }: { children: ReactNode }) {
@@ -111,6 +137,7 @@ function AppRoutes() {
           }
         />
         <Route path="/primeiro-acesso" element={<PrimeiroAcessoRoute />} />
+        <Route path="/boas-vindas" element={<BoasVindasRoute />} />
         <Route
           path="/ops/login"
           element={

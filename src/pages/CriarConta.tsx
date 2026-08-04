@@ -1,8 +1,8 @@
-import { motion } from 'framer-motion'
 import { ArrowLeft, ArrowRight, Eye, EyeOff } from 'lucide-react'
 import { useMemo, useState, type FormEvent } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { useApp } from '../context/AppContext'
+import { queueWelcomeScreen } from '../utils/welcome'
 
 function onlyDigits(v: string) {
   return v.replace(/\D/g, '')
@@ -105,29 +105,22 @@ export function CriarConta() {
       navigate('/primeiro-acesso', { replace: true })
       return
     }
-    navigate('/home', { replace: true })
+    queueWelcomeScreen()
+    navigate('/boas-vindas', { replace: true })
   }
 
   return (
     <div className="signup-page">
-      <motion.div
-        className="glass signup-card"
-        initial={{ opacity: 0, y: 18 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
-      >
+      <div className="signup-card signup-card-in">
         <Link to="/" className="signup-back">
           <ArrowLeft size={16} />
           Voltar
         </Link>
 
-        <img
-          src="/logo-full.png"
-          alt="Glazia"
-          className="signup-logo"
-          width={160}
-          height={48}
-        />
+        <div className="signup-brand" aria-label="Glazia">
+          <img src="/logo-mark.svg" alt="" width={28} height={42} />
+          <span>GLAZIA</span>
+        </div>
         <h1>Criar conta</h1>
         <p className="signup-sub">
           14 dias grátis para entender para onde o dinheiro da sua vidraçaria
@@ -291,7 +284,7 @@ export function CriarConta() {
             Já tem conta? <Link to="/login">Entrar</Link>
           </p>
         </form>
-      </motion.div>
+      </div>
     </div>
   )
 }
