@@ -31,6 +31,7 @@ import type {
 const PLANOS: PlanoAssinatura[] = ['BASIC', 'STANDARD', 'PRO']
 
 const PLANO_LABEL: Record<PlanoAssinatura, string> = {
+  TRIAL: 'Trial — 14 dias',
   BASIC: 'Basic — 1 usuário',
   STANDARD: 'Standard — 2 usuários + chat + export',
   PRO: 'Pro — usuários ilimitados + chat + export',

@@ -32,18 +32,6 @@ function money(v: number) {
   return formatCurrency(v)
 }
 
-/** Valores curtos para barras (evita corte no gráfico). */
-function moneyShort(v: number) {
-  const abs = Math.abs(v)
-  if (abs >= 1_000_000) {
-    return `R$ ${(v / 1_000_000).toFixed(1).replace('.', ',')} mi`
-  }
-  if (abs >= 1000) {
-    return `R$ ${(v / 1000).toFixed(1).replace('.', ',')} mil`
-  }
-  return money(v)
-}
-
 function pct(v: number) {
   if (!Number.isFinite(v)) return '—'
   return `${v.toFixed(1).replace('.', ',')}%`

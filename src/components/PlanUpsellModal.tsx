@@ -32,11 +32,13 @@ type Props = {
   onClose: () => void
 }
 
+type PlanoPago = Exclude<PlanoAssinatura, 'TRIAL'>
+
 function PlanCard({
   plano,
   highlight,
 }: {
-  plano: PlanoAssinatura
+  plano: PlanoPago
   highlight?: boolean
 }) {
   const copy = PLAN_COPY[plano]
@@ -50,7 +52,7 @@ function PlanCard({
       </div>
       <p className="upsell-plan-tag">{copy.tagline}</p>
       <ul>
-        {copy.beneficios.map((b) => (
+        {copy.beneficios.map((b: string) => (
           <li key={b}>
             <Check size={16} strokeWidth={2.5} />
             <span>{b}</span>
