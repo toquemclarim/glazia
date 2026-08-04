@@ -9,41 +9,21 @@ import {
 import { AppModule } from './app.module';
 import type { Environment } from './config/env';
 
-/**
- * CORS para Vercel (prod + previews) e lista explícita em CORS_ORIGIN.
- * Com credentials:true não dá para usar origin:'*'.
- */
-function buildCorsOriginDelegate(corsOrigin: string) {
-  const allowed = new Set(
-    corsOrigin
-      .split(',')
-      .map((o) => o.trim())
-      .filter(Boolean),
-  );
-  const allowVercelPreviews =
-    process.env.CORS_ALLOW_VERCEL_PREVIEWS === 'true';
+/** Origens explícitas + opcionalmente previews da Vercel. */
+function resolveCorsOrigins(corsOrigin: string): (string | RegExp)[] {
+  const allowed = corsOrigin
+    .split(',')
+    .map((o) => o.trim())
+    .filter(Boolean);
 
-  return (
-    origin: string | undefined,
-    callback: (err: Error | null, allow?: boolean) => void,
-  ) => {
-    if (!origin) {
-      callback(null, true);
-      return;
-    }
-    if (allowed.has(origin)) {
-      callback(null, true);
-      return;
-    }
-    if (
-      allowVercelPreviews &&
-      /^https:\/\/[\w-]+(?:-[\w]+)*\.vercel\.app$/i.test(origin)
-    ) {
-      callback(null, true);
-      return;
-    }
-    callback(new Error(`CORS bloqueado para origem: ${origin}`), false);
-  };
+  if (process.env.CORS_ALLOW_VERCEL_PREVIEWS === 'true') {
+    return [
+      ...allowed,
+      /^https:\/\/[\w-]+(?:-[\w]+)*\.vercel\.app$/i,
+    ];
+  }
+
+  return allowed;
 }
 
 async function bootstrap() {
@@ -56,9 +36,8 @@ async function bootstrap() {
 
   await app.register(helmet);
 
-  const corsOrigin = config.get('CORS_ORIGIN', { infer: true });
   app.enableCors({
-    origin: buildCorsOriginDelegate(corsOrigin),
+    origin: resolveCorsOrigins(config.get('CORS_ORIGIN', { infer: true })),
     credentials: true,
     methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
@@ -74,7 +53,7 @@ async function bootstrap() {
   );
   app.enableShutdownHooks();
 
-  // Render / containers: PORT vem do ambiente; host deve ser 0.0.0.0
+  // Render / containers: PORT do ambiente; host 0.0.0.0
   const port = Number(process.env.PORT) || config.get('PORT', { infer: true });
   await app.listen({ port, host: '0.0.0.0' });
   logger.log(`API ouvindo em 0.0.0.0:${port}`);
