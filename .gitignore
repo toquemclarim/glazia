@@ -61,6 +61,11 @@ supabase/.env
 supabase/.env.*
 !supabase/.env.example
 
+# Firebase / deploy local
+.firebase/
+.env.production
+!.env.production.example
+
 # Testes e automação de navegador
 test-results/
 playwright-report/

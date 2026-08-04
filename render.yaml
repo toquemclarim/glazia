@@ -1,0 +1,40 @@
+# Render Blueprint — API NestJS (Free Web Service) + Supabase Postgres
+# Docs: https://render.com/docs/blueprint-spec
+#
+# rootDir: server  → monorepo (front React fica fora deste serviço)
+
+services:
+  - type: web
+    name: glazia-api
+    runtime: node
+    plan: free
+    region: oregon
+    rootDir: server
+    branch: main
+    autoDeploy: true
+    buildCommand: npm ci && npm run build
+    startCommand: npm run start:prod
+    healthCheckPath: /api/v1/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: CORS_ORIGIN
+        sync: false
+      - key: AUTH_DEMO_USERS
+        value: '[]'
+      - key: DB_SCHEMA
+        value: analytics
+      - key: DB_CATALOG_SCHEMA
+        value: dt_catalogo
+      - key: DB_POOL_MAX
+        value: '5'
+      - key: DATABASE_SSL_REJECT_UNAUTHORIZED
+        value: 'false'
+      - key: JWT_EXPIRES_IN
+        value: 8h
+      - key: CORS_ALLOW_VERCEL_PREVIEWS
+        value: 'true'

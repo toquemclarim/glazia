@@ -1,0 +1,11 @@
+node_modules
+dist
+coverage
+test
+**/*.spec.ts
+.git
+.env
+.env.*
+!.env.example
+*.md
+.DS_Store

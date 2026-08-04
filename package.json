@@ -10,6 +10,7 @@
     "build": "tsc -b && vite build",
     "build:api": "npm --prefix server run build",
     "build:all": "npm run build && npm run build:api",
+    "deploy:web": "npm run build && firebase deploy --only hosting",
     "docs:pdf": "node scripts/generate-architecture-doc.cjs",
     "lint": "oxlint",
     "preview": "vite preview"
