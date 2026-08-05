@@ -250,6 +250,7 @@ img {
 .brand-logo-mark.brand-logo-nav {
   width: 40px;
   height: 40px;
+  object-fit: contain;
 }
 
 .brand-logo,

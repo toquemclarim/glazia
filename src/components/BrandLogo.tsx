@@ -17,7 +17,8 @@ type BrandLogoProps = {
 const SRC = {
   fullLight: '/logo-full-clear.png',
   fullDark: '/logo-full-on-dark.png',
-  markLight: '/logo-mark-clear.png',
+  /** Ícone G oficial (sem fundo) — marca pessoal compacta */
+  markLight: '/logo-g-mark.png',
   markDark: '/logo-mark-on-dark.png',
 } as const
 

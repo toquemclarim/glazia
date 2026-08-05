@@ -4,13 +4,17 @@ import {
   ArrowRight,
   BarChart3,
   ClipboardList,
+  Coins,
+  FileSpreadsheet,
   Gauge,
+  Info,
   Layers,
   Lock,
   MessageSquare,
   PenLine,
   Receipt,
   ShieldCheck,
+  TrendingUp,
   UserPlus,
   Users,
   Wallet,
@@ -53,6 +57,25 @@ function useRevealOnScroll(enabled: boolean) {
     }
   }, [enabled])
 }
+
+/** Três pilares do hero (glass cards) */
+const HERO_CARDS = [
+  {
+    icon: BarChart3,
+    title: 'Análise de Dados',
+    body: 'KPIs e mix de produto com leitura clara para a oficina.',
+  },
+  {
+    icon: FileSpreadsheet,
+    title: 'DRE em Tempo Real',
+    body: 'Faturamento, custos e lucro do mês sem planilha paralela.',
+  },
+  {
+    icon: Coins,
+    title: 'Fluxo de Caixa',
+    body: 'O que entrou, o que falta receber e o que vence amanhã.',
+  },
+]
 
 const BENEFICIOS = [
   {
@@ -132,22 +155,27 @@ const FAQ = [
   },
 ]
 
-function LogoMark({
-  className = '',
-  size = 'nav',
-}: {
-  className?: string
-  size?: 'nav' | 'hero'
-}) {
+function LogoWordmark({ className = '' }: { className?: string }) {
   return (
     <span className={`lp-logo ${className}`}>
       <BrandLogo
         variant="full"
-        size={size}
+        size="nav"
         tone="light"
         className="lp-logo-img"
       />
     </span>
+  )
+}
+
+function LogoMarkOnly({ className = '' }: { className?: string }) {
+  return (
+    <BrandLogo
+      variant="mark"
+      size="mark"
+      tone="light"
+      className={`lp-logo-g ${className}`}
+    />
   )
 }
 
@@ -159,8 +187,8 @@ function HeroHoloStage() {
       <div className="lp-hero-particles" />
 
       <div className="lp-holo lp-holo-kpi lp-holo-float-a">
-        <span className="lp-holo-label">Visão do mês</span>
-        <strong>Mês rentável</strong>
+        <span className="lp-holo-label">Visão geral do mês</span>
+        <strong>Receita total</strong>
         <em>+ R$ 5.808</em>
         <div className="lp-holo-bars">
           <i style={{ height: '78%' }} />
@@ -172,7 +200,7 @@ function HeroHoloStage() {
 
       <div className="lp-holo lp-holo-cash lp-holo-float-b">
         <span className="lp-holo-label">Fluxo de caixa</span>
-        <strong>Caixa no azul</strong>
+        <strong>Projetado</strong>
         <div className="lp-holo-row">
           <span>Recebido</span>
           <b>R$ 12.4k</b>
@@ -184,13 +212,13 @@ function HeroHoloStage() {
       </div>
 
       <div className="lp-holo lp-holo-mix lp-holo-float-c">
-        <span className="lp-holo-label">Lucro por linha</span>
+        <span className="lp-holo-label">Custos por categoria</span>
         <div className="lp-holo-chip">
-          <span>SUPREMA</span>
+          <span>Vidro</span>
           <i style={{ width: '86%' }} />
         </div>
         <div className="lp-holo-chip">
-          <span>GOLD</span>
+          <span>Alumínio</span>
           <i style={{ width: '62%' }} />
         </div>
       </div>
@@ -241,25 +269,37 @@ export function Landing() {
   if (usuario) return <Navigate to="/home" replace />
 
   return (
-    <div className="lp lp-light">
+    <div className="lp lp-light lp-glass">
+      <div className="lp-factory-bg" aria-hidden="true" />
       <a className="lp-skip" href="#conteudo">
         Ir para o conteúdo
       </a>
 
       <header className={`lp-nav${scrolled ? ' scrolled' : ''}`}>
-        <div className="lp-nav-inner">
+        <div className="lp-nav-inner lp-glass-panel">
           <a href="#topo" className="lp-brand" aria-label="Glazia — início">
-            <LogoMark />
+            <LogoWordmark />
           </a>
           <nav className="lp-nav-links" aria-label="Seções">
-            <a href="#recursos">Recursos</a>
-            <a href="#beneficios">Benefícios</a>
-            <a href="#planos">Planos</a>
-            <a href="#contato">Contato</a>
+            <a href="#recursos" className="lp-nav-chip">
+              Recursos
+            </a>
+            <a href="#planos" className="lp-nav-chip">
+              Planos
+            </a>
+            <a href="#beneficios" className="lp-nav-chip">
+              Benefícios
+            </a>
+            <a href="#assistente" className="lp-nav-chip">
+              Assistente
+            </a>
+            <a href="#clientes" className="lp-nav-chip">
+              Clientes
+            </a>
           </nav>
           <div className="lp-nav-actions">
-            <Link to="/login" className="lp-btn lp-btn-ghost">
-              Entrar
+            <Link to="/login" className="lp-btn lp-btn-glass">
+              Login
             </Link>
             <Link to="/criar-conta" className="lp-btn lp-btn-metal">
               Criar conta
@@ -270,52 +310,240 @@ export function Landing() {
 
       <main id="conteudo">
         <section id="topo" className="lp-hero">
-          <div className="lp-hero-atmosphere" aria-hidden="true" />
-          <div className="lp-hero-grid">
-            <div className="lp-hero-copy lp-hero-in">
-              <p className="lp-kicker">Feito para vidraçarias e esquadrias</p>
-              <LogoMark className="lp-logo-hero" size="hero" />
-              <h1>
-                Descubra para onde o dinheiro da sua vidraçaria está indo.
-              </h1>
-              <p className="lp-hero-lead">
-                Controle financeiro simples e inteligente: resultado do mês,
-                caixa, custos e o que ainda falta pagar — tudo no mesmo lugar.
-              </p>
-              <div className="lp-hero-cta">
-                <Link to="/criar-conta" className="lp-btn lp-btn-metal lp-cta-main">
-                  Criar conta gratuitamente
-                  <ArrowRight size={18} />
-                </Link>
-                <Link to="/login" className="lp-btn lp-btn-glass">
-                  Entrar
-                </Link>
+          <div className="lp-hero-shell lp-glass-panel lp-hero-in">
+            <div className="lp-hero-grid">
+              <div className="lp-hero-copy">
+                <p className="lp-kicker">Feito para vidraçarias e esquadrias</p>
+                <h1>
+                  Descubra para onde o dinheiro da sua vidraçaria está indo.
+                </h1>
+                <p className="lp-hero-lead">
+                  Controle financeiro simples e inteligente: resultado do mês,
+                  caixa, custos e o que ainda falta pagar — tudo no mesmo lugar.
+                </p>
+                <div className="lp-hero-cta">
+                  <Link
+                    to="/criar-conta"
+                    className="lp-btn lp-btn-metal lp-cta-main"
+                  >
+                    Criar conta gratuitamente
+                    <ArrowRight size={18} />
+                  </Link>
+                  <Link to="/login" className="lp-btn lp-btn-glass">
+                    Entrar
+                  </Link>
+                </div>
+                <p className="lp-micro">
+                  Experimente gratuitamente durante 14 dias. Sem cartão de
+                  crédito.
+                </p>
+                <aside
+                  className="lp-session-chip lp-glass-panel"
+                  aria-label="Prévia pós-login"
+                >
+                  <LogoMarkOnly />
+                  <div>
+                    <span className="lp-session-label">Sessão ativa</span>
+                    <strong>Vidraçaria Alpha</strong>
+                  </div>
+                </aside>
               </div>
-              <p className="lp-micro">
-                Experimente gratuitamente durante 14 dias. Sem cartão de
-                crédito.
-              </p>
+
+              <div
+                className="lp-hero-visual lp-hero-in-delay"
+                role="img"
+                aria-label="Profissional de vidraçaria com tablet e painéis holográficos de KPIs do Glazia"
+              >
+                <HeroHoloStage />
+              </div>
             </div>
 
-            <div
-              className="lp-hero-visual lp-hero-in-delay"
-              role="img"
-              aria-label="Profissional de vidraçaria com tablet e painéis holográficos de KPIs do Glazia"
-            >
-              <HeroHoloStage />
+            <div className="lp-hero-cards" id="beneficios">
+              <div className="lp-hero-cards-head">
+                <p className="lp-kicker">Benefícios</p>
+                <h2>Menos achismo. Mais decisão.</h2>
+              </div>
+              <ul>
+                {HERO_CARDS.map((card, i) => (
+                  <li
+                    key={card.title}
+                    className="lp-glass-card"
+                    style={{ animationDelay: `${0.15 + i * 0.08}s` }}
+                  >
+                    <span className="lp-glass-card-icon" aria-hidden="true">
+                      <card.icon size={22} strokeWidth={1.75} />
+                    </span>
+                    <h3>{card.title}</h3>
+                    <p>{card.body}</p>
+                  </li>
+                ))}
+              </ul>
             </div>
           </div>
         </section>
 
-        <section id="beneficios" className="lp-section lp-benefits">
-          <div className="lp-benefits-panel" data-reveal>
-            <div className="lp-section-head">
-              <p className="lp-kicker">Benefícios</p>
-              <h2>Menos achismo. Mais decisão.</h2>
+        <section className="lp-section lp-assistant" id="assistente" data-reveal>
+          <div className="lp-assistant-shell lp-glass-panel">
+            <div className="lp-assistant-copy">
+              <p className="lp-kicker">Assistente Glazia</p>
+              <h2>Você pergunta sobre as finanças. Ele responde.</h2>
               <p>
-                Painéis holográficos de KPIs, dashboards flutuantes e gráficos
-                de fluxo de caixa — a mesma clareza do painel, na operação do
-                dia a dia.
+                Controle do financeiro onde você estiver — rápido e prático.
+                Resumo do mês, produto mais rentável, o que vence: basta
+                perguntar.
+              </p>
+              <ul className="lp-assistant-points">
+                <li>Respostas com os números da sua empresa</li>
+                <li>Atalhos prontos para o dia a dia</li>
+                <li>Sem abrir planilha nem caçar relatório</li>
+              </ul>
+            </div>
+
+            <div className="lp-chat-mock" aria-label="Exemplo do assistente Glazia">
+              <header className="lp-chat-head">
+                <div className="lp-chat-head-brand">
+                  <BrandLogo variant="mark" size="mark" tone="dark" />
+                  <div>
+                    <strong>Consulta rápida</strong>
+                    <span>
+                      <i /> Standard · atalhos · sua empresa
+                    </span>
+                  </div>
+                </div>
+              </header>
+
+              <div className="lp-chat-thread">
+                <div className="lp-chat-msg lp-chat-user">
+                  <p>Resumo do mês</p>
+                </div>
+                <div className="lp-chat-msg lp-chat-bot">
+                  <p>
+                    <strong>Agosto 2026</strong> — mês lucrativo.
+                  </p>
+                  <ul>
+                    <li>
+                      Faturamento: <b>R$ 6.090,00</b>
+                    </li>
+                    <li>
+                      Lucro operacional: <b>R$ 5.808,00</b>
+                    </li>
+                    <li>
+                      A receber em aberto: <b>R$ 6.090,00</b>
+                    </li>
+                  </ul>
+                </div>
+                <div className="lp-chat-msg lp-chat-user">
+                  <p>Mais rentável</p>
+                </div>
+                <div className="lp-chat-msg lp-chat-bot">
+                  <p>
+                    Produto mais rentável: <strong>JANELA MAXIM-AR</strong>
+                  </p>
+                  <ul>
+                    <li>
+                      Lucro: <b>R$ 3.118,00</b>
+                    </li>
+                    <li>
+                      Linha: <b>SUPREMA</b>
+                    </li>
+                  </ul>
+                  <p className="lp-chat-hint">
+                    Sugestão: priorize orçamentos desse mix enquanto a margem
+                    estiver boa.
+                  </p>
+                </div>
+              </div>
+
+              <footer className="lp-chat-foot">
+                <span>Perguntar de novo</span>
+                <div className="lp-chat-chips">
+                  <button type="button" tabIndex={-1}>
+                    <BarChart3 size={14} /> Resumo do mês
+                  </button>
+                  <button type="button" tabIndex={-1}>
+                    <TrendingUp size={14} /> Mais rentável
+                  </button>
+                  <button type="button" tabIndex={-1}>
+                    <Info size={14} /> O que pago
+                  </button>
+                </div>
+              </footer>
+            </div>
+          </div>
+        </section>
+
+        <section className="lp-section lp-gains" data-reveal>
+          <div className="lp-gains-shell lp-glass-panel">
+            <div className="lp-section-head">
+              <p className="lp-kicker">Painel na oficina</p>
+              <h2>Gráficos que mostram ganho de verdade</h2>
+              <p>
+                Fluxo, pizza de margem e barras de receita — flutuando sobre o
+                dia a dia da vidraçaria.
+              </p>
+            </div>
+
+            <div className="lp-gains-stage">
+              <img
+                className="lp-gains-photo"
+                src="/lp-painel-oficina.jpg"
+                alt="Profissional Glazia acompanhando o painel financeiro na oficina"
+                width={1024}
+                height={465}
+                loading="lazy"
+                decoding="async"
+              />
+
+              <div className="lp-float-chart lp-float-bars lp-holo-float-a">
+                <span className="lp-holo-label">Receita do mês</span>
+                <strong>+ R$ 48.200</strong>
+                <div className="lp-holo-bars lp-gains-bars">
+                  <i style={{ height: '55%' }} />
+                  <i style={{ height: '72%' }} />
+                  <i style={{ height: '48%' }} />
+                  <i style={{ height: '88%' }} />
+                  <i style={{ height: '96%' }} />
+                </div>
+              </div>
+
+              <div className="lp-float-chart lp-float-pie lp-holo-float-b">
+                <span className="lp-holo-label">Margem por linha</span>
+                <div className="lp-pie" aria-hidden="true">
+                  <span className="lp-pie-center">
+                    <b>62%</b>
+                    <small>margem</small>
+                  </span>
+                </div>
+                <ul className="lp-pie-legend">
+                  <li>
+                    <i style={{ background: '#2d9f6f' }} /> Suprema
+                  </li>
+                  <li>
+                    <i style={{ background: '#c9a06a' }} /> Gold
+                  </li>
+                  <li>
+                    <i style={{ background: '#8a5e32' }} /> Outros
+                  </li>
+                </ul>
+              </div>
+
+              <div className="lp-float-chart lp-float-gain lp-holo-float-c">
+                <span className="lp-holo-label">Lucro líquido</span>
+                <strong className="lp-gain-up">+ 38%</strong>
+                <p>vs. mês anterior · caixa no azul</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="lp-section lp-benefits">
+          <div className="lp-benefits-panel lp-glass-panel" data-reveal>
+            <div className="lp-section-head">
+              <p className="lp-kicker">Na prática</p>
+              <h2>Tudo que a oficina precisa acompanhar</h2>
+              <p>
+                Dashboards flutuantes, DRE e fluxo de caixa — a mesma clareza
+                do painel, no ritmo da vidraçaria.
               </p>
             </div>
             <ul className="lp-benefit-list">
@@ -541,10 +769,45 @@ export function Landing() {
             />
           </div>
         </section>
+
+        <section className="lp-section lp-clients" id="clientes" data-reveal>
+          <div className="lp-clients-shell lp-glass-panel">
+            <div className="lp-clients-head">
+              <p className="lp-kicker">Nossos clientes</p>
+              <h2>Já tem vidraçaria no Glazia</h2>
+              <p>
+                Empresas reais do ramo já usam o painel para enxergar o mês com
+                clareza — sem planilha solta.
+              </p>
+            </div>
+
+            <article className="lp-client-card">
+              <div className="lp-client-mark" aria-hidden="true">
+                <img
+                  src="/cliente-bobo.png"
+                  alt=""
+                  width={120}
+                  height={120}
+                  loading="lazy"
+                  decoding="async"
+                />
+              </div>
+              <div className="lp-client-copy">
+                <span className="lp-client-badge">Cliente ativo</span>
+                <h3>Bobô Esquadrias</h3>
+                <p>
+                  Esquadrias e vidraçaria — gestão financeira no mesmo ritmo da
+                  oficina.
+                </p>
+              </div>
+              <div className="lp-client-glow" aria-hidden="true" />
+            </article>
+          </div>
+        </section>
       </main>
 
-      <footer className="lp-footer">
-        <LogoMark />
+      <footer className="lp-footer lp-glass-panel">
+        <LogoWordmark />
         <p>© {new Date().getFullYear()} Glazia. Controle financeiro para vidraçarias.</p>
         <div className="lp-footer-links">
           <Link to="/login">Entrar</Link>
