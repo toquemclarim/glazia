@@ -2504,6 +2504,28 @@ table.data tr:hover td {
   animation: lancSpin 0.8s linear infinite;
 }
 
+.export-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.export-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  min-height: 1.25rem;
+  transition: color 0.2s ease;
+}
+
+.export-actions [aria-busy='true'] {
+  opacity: 0.85;
+  cursor: wait;
+}
+
 @keyframes lancOrbSale {
   from { transform: translate(0, 0) scale(1); }
   to { transform: translate(-12%, 10%) scale(1.12); }

@@ -81,7 +81,10 @@ export async function exportarPainelExcel(painel: PainelSocios) {
   )
 }
 
-export async function exportarPainelPdf(painel: PainelSocios) {
+export async function exportarPainelPdf(
+  painel: PainelSocios,
+  opts?: { empresaNome?: string | null },
+) {
   const { gerarRelatorioPdf } = await import('./pdfReport')
-  await gerarRelatorioPdf(painel)
+  await gerarRelatorioPdf(painel, opts)
 }

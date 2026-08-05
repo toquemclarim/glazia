@@ -2,26 +2,35 @@ import type { jsPDF } from 'jspdf'
 import type { PainelSocios } from '../types'
 import { capitalize, formatCurrency, formatMonthLabel } from './format'
 
-/** Identidade Glazia (modo claro / impressão) */
+/** Identidade Glazia para impressão (modo claro) */
 const C = {
-  paper: [247, 244, 239] as const,
-  ink: [26, 22, 18] as const,
-  muted: [106, 97, 88] as const,
-  dim: [154, 145, 136] as const,
+  paper: [246, 242, 236] as const,
+  paperDeep: [238, 232, 222] as const,
+  ink: [22, 18, 14] as const,
+  muted: [98, 88, 78] as const,
+  dim: [148, 138, 128] as const,
   accent: [160, 120, 80] as const,
+  accentDeep: [122, 88, 52] as const,
   accentSoft: [232, 220, 204] as const,
-  card: [255, 255, 255] as const,
-  line: [220, 210, 198] as const,
-  success: [45, 159, 111] as const,
-  successSoft: [220, 242, 232] as const,
-  danger: [196, 92, 74] as const,
+  card: [255, 253, 250] as const,
+  line: [214, 204, 190] as const,
+  success: [31, 122, 85] as const,
+  successSoft: [222, 240, 230] as const,
+  danger: [176, 68, 56] as const,
   dangerSoft: [248, 228, 224] as const,
-  warn: [184, 130, 48] as const,
+  white: [255, 255, 255] as const,
 }
+
+const MARGIN = 16
+const FOOTER_H = 14
 
 type RGB = readonly [number, number, number]
 type Doc = InstanceType<typeof jsPDF> & {
   lastAutoTable?: { finalY: number }
+}
+
+export type PdfReportOptions = {
+  empresaNome?: string | null
 }
 
 function mesLabel(mes: string) {
@@ -57,6 +66,10 @@ function pageH(doc: Doc) {
   return doc.internal.pageSize.getHeight()
 }
 
+function contentW(doc: Doc) {
+  return pageW(doc) - MARGIN * 2
+}
+
 function roundedRect(
   doc: Doc,
   x: number,
@@ -78,73 +91,163 @@ function truncate(doc: Doc, text: string, maxW: number) {
   return `${t}…`
 }
 
-function ensureSpace(doc: Doc, y: number, need: number, marginBottom = 18) {
-  if (y + need <= pageH(doc) - marginBottom) return y
-  doc.addPage()
-  paintPageBackground(doc)
-  // Faixa de continuidade (sem repetir o cabeçalho completo).
-  setFill(doc, C.accent)
-  doc.rect(0, 0, pageW(doc), 1.8, 'F')
-  return 12
-}
-
 function paintPageBackground(doc: Doc) {
   setFill(doc, C.paper)
   doc.rect(0, 0, pageW(doc), pageH(doc), 'F')
+  // textura suave no topo
+  setFill(doc, C.paperDeep)
+  doc.rect(0, 0, pageW(doc), 4, 'F')
 }
 
-function drawFooter(doc: Doc, pageIndex: number, totalPages?: number) {
+/** Marca Glazia — dois planos em bronze */
+function drawLogoMark(doc: Doc, x: number, y: number, scale = 1) {
+  const s = scale
+  setFill(doc, C.accentDeep)
+  doc.triangle(x, y + 2 * s, x + 4.2 * s, y, x + 4.2 * s, y + 11 * s, 'F')
+  doc.triangle(x, y + 2 * s, x + 4.2 * s, y + 11 * s, x, y + 12.5 * s, 'F')
+  setFill(doc, C.accent)
+  doc.triangle(
+    x + 3.6 * s,
+    y + 1.2 * s,
+    x + 7.8 * s,
+    y,
+    x + 7.8 * s,
+    y + 10.2 * s,
+    'F',
+  )
+  doc.triangle(
+    x + 3.6 * s,
+    y + 1.2 * s,
+    x + 7.8 * s,
+    y + 10.2 * s,
+    x + 3.6 * s,
+    y + 11.4 * s,
+    'F',
+  )
+}
+
+function drawFooter(doc: Doc, pageIndex: number, totalPages: number) {
   const w = pageW(doc)
   const h = pageH(doc)
+  setFill(doc, C.paper)
+  doc.rect(0, h - FOOTER_H, w, FOOTER_H, 'F')
   setStroke(doc, C.line)
-  doc.setLineWidth(0.3)
-  doc.line(14, h - 12, w - 14, h - 12)
+  doc.setLineWidth(0.25)
+  doc.line(MARGIN, h - FOOTER_H + 2, w - MARGIN, h - FOOTER_H + 2)
   setText(doc, C.dim)
   doc.setFont('helvetica', 'normal')
-  doc.setFontSize(7.5)
-  doc.text('Glazia · Gestão financeira para vidraçarias', 14, h - 7)
-  const label =
-    totalPages != null
-      ? `Página ${pageIndex} de ${totalPages}`
-      : `Página ${pageIndex}`
-  doc.text(label, w - 14, h - 7, { align: 'right' })
+  doc.setFontSize(7)
+  doc.text('Glazia · financeiro para vidraçarias', MARGIN, h - 5)
+  doc.text(`Página ${pageIndex} de ${totalPages}`, w - MARGIN, h - 5, {
+    align: 'right',
+  })
 }
 
-function drawBrandHeader(
+function ensureSpace(
   doc: Doc,
   y: number,
-  opts: { titulo: string; subtitulo: string; geradoEm: string },
+  need: number,
+  ctx: { periodo: string; secao: string },
+) {
+  if (y + need <= pageH(doc) - FOOTER_H - 4) return y
+  doc.addPage()
+  paintPageBackground(doc)
+  return drawContinuityHeader(doc, ctx.periodo, ctx.secao)
+}
+
+function drawContinuityHeader(doc: Doc, periodo: string, secao: string) {
+  const w = pageW(doc)
+  setFill(doc, C.ink)
+  doc.rect(0, 0, w, 11, 'F')
+  setFill(doc, C.accent)
+  doc.rect(0, 11, w, 1.4, 'F')
+
+  drawLogoMark(doc, MARGIN, 1.6, 0.55)
+  setText(doc, C.white)
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(8)
+  doc.text('GLAZIA', MARGIN + 7, 7)
+
+  setText(doc, C.accentSoft)
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(7.5)
+  doc.text(`${secao}  ·  ${periodo}`, w - MARGIN, 7, { align: 'right' })
+  return 18
+}
+
+function drawCoverHeader(
+  doc: Doc,
+  opts: {
+    empresaNome: string
+    periodo: string
+    geradoEm: string
+  },
 ) {
   const w = pageW(doc)
-  // faixa bronze
+
+  // faixa editorial
   setFill(doc, C.ink)
-  doc.rect(0, 0, w, 28, 'F')
+  doc.rect(0, 0, w, 42, 'F')
   setFill(doc, C.accent)
-  doc.rect(0, 28, w, 2.2, 'F')
+  doc.rect(0, 42, w, 2.4, 'F')
 
-  setText(doc, [255, 255, 255])
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(16)
-  doc.text('GLAZIA', 14, 13)
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(8)
-  setText(doc, C.accentSoft)
-  doc.text('Analytics · vidraçarias & esquadrias', 14, 20)
+  // brilho sutil
+  setFill(doc, [40, 34, 28])
+  doc.rect(0, 0, w * 0.38, 42, 'F')
 
-  setText(doc, [255, 255, 255])
-  doc.setFontSize(8)
-  doc.text(opts.geradoEm, w - 14, 13, { align: 'right' })
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(10)
-  doc.text(opts.titulo, w - 14, 21, { align: 'right' })
-
-  let yy = y + 36
+  drawLogoMark(doc, MARGIN, 8, 1.15)
+  setText(doc, C.white)
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(18)
+  doc.text('GLAZIA', MARGIN + 14, 16)
+
+  setText(doc, C.accentSoft)
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(8)
+  doc.text('Gestão financeira · vidraçarias & esquadrias', MARGIN + 14, 22)
+
+  setText(doc, C.dim)
+  doc.setFontSize(7.5)
+  doc.text(`Gerado em ${opts.geradoEm}`, w - MARGIN, 14, { align: 'right' })
+
+  setText(doc, C.white)
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(9)
+  doc.text('RELATÓRIO DO MÊS', w - MARGIN, 22, { align: 'right' })
+
+  let y = 52
+  setText(doc, C.muted)
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(8)
+  doc.text('EMPRESA', MARGIN, y)
+
+  y += 6
   setText(doc, C.ink)
-  doc.text(opts.subtitulo, 14, yy)
-  yy += 6
-  return yy
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(16)
+  doc.text(truncate(doc, opts.empresaNome, contentW(doc)), MARGIN, y)
+
+  y += 8
+  setText(doc, C.accentDeep)
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(13)
+  doc.text(opts.periodo, MARGIN, y)
+
+  y += 5
+  setStroke(doc, C.accent)
+  doc.setLineWidth(1.1)
+  doc.line(MARGIN, y, MARGIN + 28, y)
+
+  y += 6
+  setText(doc, C.muted)
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(8.5)
+  doc.text(
+    'Leitura rápida para decisão: o que vendeu, o que sobrou e o que entrou de dinheiro.',
+    MARGIN,
+    y,
+  )
+  return y + 8
 }
 
 function drawVerdictBanner(
@@ -154,27 +257,38 @@ function drawVerdictBanner(
   title: string,
   body: string,
 ) {
-  const w = pageW(doc) - 28
-  const h = 22
+  const w = contentW(doc)
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(8.5)
+  const lines = doc.splitTextToSize(body, w - 22)
+  const h = Math.max(20, 12 + lines.length * 3.8)
+
   setFill(doc, ok ? C.successSoft : C.dangerSoft)
   setStroke(doc, ok ? C.success : C.danger)
-  doc.setLineWidth(0.6)
-  roundedRect(doc, 14, y, w, h, 3, 'FD')
+  doc.setLineWidth(0.45)
+  roundedRect(doc, MARGIN, y, w, h, 3.5, 'FD')
 
   setFill(doc, ok ? C.success : C.danger)
-  doc.circle(22, y + h / 2, 3.2, 'F')
+  roundedRect(doc, MARGIN, y, 2.2, h, 1, 'F')
+
+  // marcador
+  setFill(doc, ok ? C.success : C.danger)
+  doc.circle(MARGIN + 9, y + 8, 2.6, 'F')
+  setText(doc, C.white)
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(8)
+  doc.text(ok ? '✓' : '!', MARGIN + 9, y + 9.2, { align: 'center' })
 
   setText(doc, ok ? C.success : C.danger)
   doc.setFont('helvetica', 'bold')
-  doc.setFontSize(11)
-  doc.text(title, 30, y + 8.5)
+  doc.setFontSize(10.5)
+  doc.text(title, MARGIN + 16, y + 8.5)
 
   setText(doc, C.ink)
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(8.5)
-  const lines = doc.splitTextToSize(body, w - 22)
-  doc.text(lines.slice(0, 2), 30, y + 15)
-  return y + h + 8
+  doc.text(lines, MARGIN + 16, y + 14)
+  return y + h + 7
 }
 
 function drawKpiGrid(
@@ -182,32 +296,38 @@ function drawKpiGrid(
   y: number,
   items: Array<{ label: string; value: string; tone?: 'ok' | 'bad' | 'neutral' }>,
 ) {
-  const gap = 4
+  const gap = 3.5
   const cols = Math.min(4, items.length)
-  const totalW = pageW(doc) - 28
+  const totalW = contentW(doc)
   const cardW = (totalW - gap * (cols - 1)) / cols
-  const cardH = 22
+  const cardH = 24
 
   items.slice(0, cols).forEach((item, i) => {
-    const x = 14 + i * (cardW + gap)
+    const x = MARGIN + i * (cardW + gap)
+
+    // sombra leve
+    setFill(doc, C.paperDeep)
+    roundedRect(doc, x + 0.6, y + 0.7, cardW, cardH, 3, 'F')
+
     setFill(doc, C.card)
     setStroke(doc, C.line)
-    doc.setLineWidth(0.35)
-    roundedRect(doc, x, y, cardW, cardH, 2.5, 'FD')
+    doc.setLineWidth(0.3)
+    roundedRect(doc, x, y, cardW, cardH, 3, 'FD')
+
     setFill(doc, C.accent)
-    doc.rect(x, y, 1.6, cardH, 'F')
+    roundedRect(doc, x, y, 1.8, cardH, 0.8, 'F')
 
     setText(doc, C.muted)
     doc.setFont('helvetica', 'normal')
-    doc.setFontSize(7)
-    doc.text(item.label.toUpperCase(), x + 5, y + 7)
+    doc.setFontSize(6.5)
+    doc.text(item.label.toUpperCase(), x + 5.5, y + 7.5)
 
     const tone =
       item.tone === 'ok' ? C.success : item.tone === 'bad' ? C.danger : C.ink
     setText(doc, tone)
     doc.setFont('helvetica', 'bold')
-    doc.setFontSize(10)
-    doc.text(truncate(doc, item.value, cardW - 10), x + 5, y + 16)
+    doc.setFontSize(11)
+    doc.text(truncate(doc, item.value, cardW - 10), x + 5.5, y + 17)
   })
 
   return y + cardH + 8
@@ -217,59 +337,137 @@ function drawSectionTitle(doc: Doc, y: number, title: string, hint?: string) {
   setText(doc, C.ink)
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(11)
-  doc.text(title, 14, y)
+  doc.text(title, MARGIN, y)
   if (hint) {
-    setText(doc, C.muted)
+    setText(doc, C.dim)
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(7.5)
-    doc.text(hint, pageW(doc) - 14, y, { align: 'right' })
+    doc.text(hint, pageW(doc) - MARGIN, y, { align: 'right' })
   }
-  setStroke(doc, C.accent)
-  doc.setLineWidth(0.8)
-  doc.line(14, y + 2.5, 42, y + 2.5)
+  setFill(doc, C.accent)
+  roundedRect(doc, MARGIN, y + 2.2, 18, 1.1, 0.5, 'F')
   return y + 8
 }
 
-/** Cascata visual: Faturamento → variáveis → fixos → lucro */
+/** Cascata contábil real: cada barra parte do nível acumulado */
 function drawWaterfall(
   doc: Doc,
   y: number,
   parts: Array<{ label: string; value: number; kind: 'in' | 'out' | 'result' }>,
 ) {
-  const boxX = 14
-  const boxW = pageW(doc) - 28
-  const boxH = 48
+  const boxX = MARGIN
+  const boxW = contentW(doc)
+  const boxH = 56
+  const padX = 8
+  const padTop = 14
+  const chartH = 30
+  const baseY = y + padTop + chartH
+
+  setFill(doc, C.paperDeep)
+  roundedRect(doc, boxX + 0.7, y + 0.7, boxW, boxH, 3.5, 'F')
   setFill(doc, C.card)
   setStroke(doc, C.line)
+  doc.setLineWidth(0.3)
+  roundedRect(doc, boxX, y, boxW, boxH, 3.5, 'FD')
+
+  const maxAbs = Math.max(
+    ...parts.map((p) => Math.abs(p.value)),
+    Math.abs(
+      parts.reduce((acc, p) => {
+        if (p.kind === 'in') return acc + p.value
+        if (p.kind === 'out') return acc - p.value
+        return acc
+      }, 0),
+    ),
+    1,
+  )
+
+  // reconstruir níveis
+  let running = 0
+  const levels = parts.map((p) => {
+    if (p.kind === 'in') {
+      const from = 0
+      const to = p.value
+      running = to
+      return { ...p, from, to }
+    }
+    if (p.kind === 'out') {
+      const from = running
+      const to = running - p.value
+      running = to
+      return { ...p, from, to }
+    }
+    return { ...p, from: 0, to: p.value }
+  })
+
+  const slotW = (boxW - padX * 2) / levels.length
+  const scale = chartH / maxAbs
+
+  // linha base
+  setStroke(doc, C.line)
   doc.setLineWidth(0.35)
-  roundedRect(doc, boxX, y, boxW, boxH, 3, 'FD')
+  doc.setLineDashPattern([1.2, 1.2], 0)
+  doc.line(boxX + padX, baseY, boxX + boxW - padX, baseY)
+  doc.setLineDashPattern([], 0)
 
-  const maxAbs = Math.max(...parts.map((p) => Math.abs(p.value)), 1)
-  const barMaxH = 26
-  const baseY = y + 36
-  const slotW = boxW / parts.length
+  levels.forEach((p, i) => {
+    const cx = boxX + padX + slotW * i + slotW / 2
+    const barW = Math.min(16, slotW - 12)
 
-  parts.forEach((p, i) => {
-    const cx = boxX + slotW * i + slotW / 2
-    const h = Math.max(3, (Math.abs(p.value) / maxAbs) * barMaxH)
     const color =
-      p.kind === 'in' ? C.accent : p.kind === 'out' ? C.danger : p.value >= 0 ? C.success : C.danger
+      p.kind === 'in'
+        ? C.accent
+        : p.kind === 'out'
+          ? C.danger
+          : p.value >= 0
+            ? C.success
+            : C.danger
+
+    let barTop: number
+    let h: number
+    if (p.kind === 'result') {
+      h = Math.max(2.2, Math.abs(p.value) * scale)
+      barTop = baseY - h
+    } else {
+      const top = Math.max(p.from, p.to, 0)
+      const bot = Math.max(Math.min(p.from, p.to), 0)
+      h = Math.max(2.2, (top - bot) * scale || Math.abs(p.value) * scale)
+      barTop = baseY - top * scale
+      // se o nível ficou negativo, ancora na base
+      if (top <= 0) {
+        h = Math.max(2.2, Math.abs(p.value) * scale)
+        barTop = baseY - h
+      }
+    }
+
+    // conector do nível acumulado anterior
+    if (i > 0 && p.kind === 'out') {
+      const prev = levels[i - 1]
+      const prevLevel = Math.max(prev.to, 0)
+      const yConn = baseY - prevLevel * scale
+      setStroke(doc, C.dim)
+      doc.setLineWidth(0.35)
+      doc.setLineDashPattern([0.8, 0.8], 0)
+      doc.line(cx - slotW / 2 + 2, yConn, cx - barW / 2, yConn)
+      doc.setLineDashPattern([], 0)
+    }
+
     setFill(doc, color)
-    const barW = Math.min(18, slotW - 10)
-    doc.roundedRect(cx - barW / 2, baseY - h, barW, h, 1, 1, 'F')
+    roundedRect(doc, cx - barW / 2, barTop, barW, h, 1.2, 'F')
 
     setText(doc, C.muted)
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(6.5)
-    doc.text(p.label, cx, y + 7, { align: 'center' })
+    doc.text(p.label, cx, y + 6.5, { align: 'center', maxWidth: slotW - 3 })
 
     setText(doc, C.ink)
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(7)
-    const sign = p.kind === 'out' ? '−' : p.kind === 'result' && p.value > 0 ? '+' : ''
-    doc.text(`${sign}${money(Math.abs(p.value))}`, cx, y + 12.5, {
+    const sign =
+      p.kind === 'out' ? '−' : p.kind === 'result' && p.value > 0 ? '+' : ''
+    doc.text(`${sign}${money(Math.abs(p.value))}`, cx, y + 11, {
       align: 'center',
-      maxWidth: slotW - 4,
+      maxWidth: slotW - 3,
     })
   })
 
@@ -279,44 +477,48 @@ function drawWaterfall(
 function drawHBars(
   doc: Doc,
   y: number,
-  rows: Array<{ label: string; value: number; sub?: string }>,
+  rows: Array<{ label: string; value: number }>,
+  ctx: { periodo: string; secao: string },
   opts?: { valueColor?: (v: number) => RGB },
 ) {
   if (!rows.length) {
     setText(doc, C.muted)
+    doc.setFont('helvetica', 'normal')
     doc.setFontSize(8)
-    doc.text('Sem dados neste período.', 14, y)
+    doc.text('Sem dados neste período.', MARGIN, y)
     return y + 10
   }
 
   const max = Math.max(...rows.map((r) => Math.abs(r.value)), 1)
-  const labelW = 42
-  const valueW = 32
-  const barX = 14 + labelW
-  const barW = pageW(doc) - 28 - labelW - valueW - 4
+  const labelW = 46
+  const valueW = 34
+  const barX = MARGIN + labelW
+  const barW = contentW(doc) - labelW - valueW - 2
   let yy = y
 
   for (const row of rows) {
-    yy = ensureSpace(doc, yy, 10)
+    yy = ensureSpace(doc, yy, 11, ctx)
+
     setText(doc, C.ink)
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(7.5)
-    doc.text(truncate(doc, row.label, labelW - 2), 14, yy + 3.5)
+    doc.text(truncate(doc, row.label, labelW - 3), MARGIN, yy + 4)
 
     setFill(doc, C.accentSoft)
-    roundedRect(doc, barX, yy, barW, 5, 1, 'F')
-    const fillW = Math.max(1.5, (Math.abs(row.value) / max) * barW)
-    const fillColor = opts?.valueColor?.(row.value) ?? (row.value >= 0 ? C.accent : C.danger)
+    roundedRect(doc, barX, yy, barW, 5.5, 1.4, 'F')
+    const fillW = Math.max(2, (Math.abs(row.value) / max) * barW)
+    const fillColor =
+      opts?.valueColor?.(row.value) ?? (row.value >= 0 ? C.accent : C.danger)
     setFill(doc, fillColor)
-    roundedRect(doc, barX, yy, fillW, 5, 1, 'F')
+    roundedRect(doc, barX, yy, fillW, 5.5, 1.4, 'F')
 
     setText(doc, row.value >= 0 ? C.ink : C.danger)
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(7.5)
-    doc.text(money(row.value), pageW(doc) - 14, yy + 3.5, { align: 'right' })
-    yy += 9
+    doc.text(money(row.value), pageW(doc) - MARGIN, yy + 4, { align: 'right' })
+    yy += 10
   }
-  return yy + 4
+  return yy + 3
 }
 
 function drawCompareCards(
@@ -335,33 +537,38 @@ function drawCompareCards(
     rows: Array<{ k: string; v: string }>
   },
 ) {
-  const gap = 5
-  const cardW = (pageW(doc) - 28 - gap) / 2
-  const cardH = 52
+  const gap = 4
+  const cardW = (contentW(doc) - gap) / 2
+  const cardH = 54
 
-  const paint = (
-    x: number,
-    data: typeof left,
-  ) => {
+  const paint = (x: number, data: typeof left) => {
+    setFill(doc, C.paperDeep)
+    roundedRect(doc, x + 0.6, y + 0.7, cardW, cardH, 3.5, 'F')
     setFill(doc, C.card)
     setStroke(doc, C.line)
-    doc.setLineWidth(0.35)
-    roundedRect(doc, x, y, cardW, cardH, 3, 'FD')
+    doc.setLineWidth(0.3)
+    roundedRect(doc, x, y, cardW, cardH, 3.5, 'FD')
+
     setFill(doc, data.ok ? C.success : C.danger)
-    doc.rect(x, y, cardW, 1.8, 'F')
+    roundedRect(doc, x, y, cardW, 2, 1, 'F')
 
     setText(doc, C.muted)
-    doc.setFontSize(7)
+    doc.setFontSize(6.5)
     doc.setFont('helvetica', 'normal')
-    doc.text(data.title.toUpperCase(), x + 5, y + 8)
+    doc.text(data.title.toUpperCase(), x + 5, y + 9)
 
     setText(doc, data.ok ? C.success : C.danger)
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(10)
-    doc.text(data.status, x + 5, y + 15)
+    doc.text(data.status, x + 5, y + 16.5)
 
-    let yy = y + 22
-    data.rows.forEach((r) => {
+    let yy = y + 24
+    data.rows.forEach((r, idx) => {
+      if (idx > 0) {
+        setStroke(doc, C.line)
+        doc.setLineWidth(0.2)
+        doc.line(x + 5, yy - 3.2, x + cardW - 5, yy - 3.2)
+      }
       setText(doc, C.muted)
       doc.setFont('helvetica', 'normal')
       doc.setFontSize(7)
@@ -374,9 +581,9 @@ function drawCompareCards(
     })
   }
 
-  paint(14, left)
-  paint(14 + cardW + gap, right)
-  return y + cardH + 8
+  paint(MARGIN, left)
+  paint(MARGIN + cardW + gap, right)
+  return y + cardH + 7
 }
 
 function drawProgressRow(
@@ -387,38 +594,159 @@ function drawProgressRow(
   meta: number | null,
   hint: string,
 ) {
-  const w = pageW(doc) - 28
+  const w = contentW(doc)
   setText(doc, C.ink)
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(8)
-  doc.text(label, 14, y)
-  setText(doc, C.muted)
+  doc.text(label, MARGIN, y)
+  setText(doc, C.dim)
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(7)
-  doc.text(hint, pageW(doc) - 14, y, { align: 'right' })
+  doc.text(hint, pageW(doc) - MARGIN, y, { align: 'right' })
 
-  const barY = y + 3
+  const barY = y + 3.5
   setFill(doc, C.accentSoft)
-  roundedRect(doc, 14, barY, w, 6, 1.5, 'F')
+  roundedRect(doc, MARGIN, barY, w, 7, 2, 'F')
 
   if (meta != null && meta > 0) {
     const ratio = Math.min(1, Math.max(0, atual / meta))
     setFill(doc, ratio >= 1 ? C.success : C.accent)
-    roundedRect(doc, 14, barY, Math.max(2, w * ratio), 6, 1.5, 'F')
+    roundedRect(doc, MARGIN, barY, Math.max(3, w * ratio), 7, 2, 'F')
+
+    // badge %
+    const badge = pct(ratio * 100)
     setText(doc, C.ink)
-    doc.setFontSize(7)
     doc.setFont('helvetica', 'bold')
+    doc.setFontSize(7)
     doc.text(
-      `${money(atual)}  ·  meta ${money(meta)}  (${pct(ratio * 100)})`,
-      14,
-      barY + 12,
+      `${money(atual)}  ·  meta ${money(meta)}  ·  ${badge}`,
+      MARGIN,
+      barY + 13,
     )
   } else {
     setText(doc, C.muted)
     doc.setFontSize(7)
-    doc.text(`${money(atual)} · meta indisponível neste mês`, 14, barY + 12)
+    doc.setFont('helvetica', 'normal')
+    doc.text(`${money(atual)} · meta indisponível neste mês`, MARGIN, barY + 13)
   }
   return barY + 18
+}
+
+function drawInsightBox(
+  doc: Doc,
+  y: number,
+  title: string,
+  bullets: string[],
+) {
+  const w = contentW(doc)
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(7.8)
+  const wrapped = bullets.map((b) => doc.splitTextToSize(b, w - 18))
+  const bodyH = wrapped.reduce((acc, lines) => acc + lines.length * 3.6 + 2.2, 0)
+  const h = 10 + bodyH + 4
+
+  setFill(doc, C.accentSoft)
+  roundedRect(doc, MARGIN, y, w, h, 3.5, 'F')
+  setFill(doc, C.accent)
+  roundedRect(doc, MARGIN, y, 2.2, h, 1, 'F')
+
+  setText(doc, C.ink)
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(8.5)
+  doc.text(title, MARGIN + 8, y + 7)
+
+  let yy = y + 12
+  wrapped.forEach((lines) => {
+    setFill(doc, C.accentDeep)
+    doc.circle(MARGIN + 10, yy + 1, 1.1, 'F')
+    setText(doc, C.ink)
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(7.8)
+    doc.text(lines, MARGIN + 14, yy + 2)
+    yy += lines.length * 3.6 + 2.2
+  })
+
+  return y + h + 6
+}
+
+function drawChecklistBox(doc: Doc, y: number, title: string, items: string[]) {
+  const w = contentW(doc)
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(7.6)
+  const wrapped = items.map((line) => doc.splitTextToSize(line, w - 20))
+  const bodyH = wrapped.reduce((acc, lines) => acc + lines.length * 3.5 + 3, 0)
+  const h = 12 + bodyH + 3
+
+  setFill(doc, C.paperDeep)
+  roundedRect(doc, MARGIN + 0.6, y + 0.7, w, h, 3.5, 'F')
+  setFill(doc, C.card)
+  setStroke(doc, C.line)
+  doc.setLineWidth(0.3)
+  roundedRect(doc, MARGIN, y, w, h, 3.5, 'FD')
+
+  setText(doc, C.ink)
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(9)
+  doc.text(title, MARGIN + 6, y + 8)
+
+  let yy = y + 14
+  wrapped.forEach((lines, i) => {
+    // checkbox
+    setStroke(doc, C.accent)
+    doc.setLineWidth(0.45)
+    doc.roundedRect(MARGIN + 6, yy - 1.8, 3.2, 3.2, 0.5, 0.5, 'S')
+    setText(doc, C.muted)
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(7.6)
+    doc.text(lines, MARGIN + 12, yy + 0.8)
+    yy += lines.length * 3.5 + 3
+    if (i < wrapped.length - 1) {
+      // espaçamento já incluso
+    }
+  })
+
+  return y + h + 4
+}
+
+function drawHighlightPair(
+  doc: Doc,
+  y: number,
+  left?: { title: string; name: string; value: string } | null,
+  right?: { title: string; name: string; value: string } | null,
+) {
+  if (!left && !right) return y
+  const gap = 4
+  const half = (contentW(doc) - gap) / 2
+
+  const paint = (
+    x: number,
+    data: { title: string; name: string; value: string },
+    ok: boolean,
+  ) => {
+    setFill(doc, ok ? C.successSoft : C.dangerSoft)
+    roundedRect(doc, x, y, half, 22, 3, 'F')
+    setFill(doc, ok ? C.success : C.danger)
+    roundedRect(doc, x, y, 2, 22, 1, 'F')
+
+    setText(doc, ok ? C.success : C.danger)
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(6.5)
+    doc.text(data.title.toUpperCase(), x + 6, y + 6.5)
+
+    setText(doc, C.ink)
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(9)
+    doc.text(truncate(doc, data.name, half - 12), x + 6, y + 13)
+
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(8)
+    setText(doc, C.muted)
+    doc.text(data.value, x + 6, y + 18.5)
+  }
+
+  if (left) paint(MARGIN, left, true)
+  if (right) paint(MARGIN + half + gap, right, false)
+  return y + 28
 }
 
 function styledTable(
@@ -432,37 +760,41 @@ function styledTable(
     startY,
     head: [head],
     body,
-    margin: { left: 14, right: 14, bottom: 16 },
+    margin: { left: MARGIN, right: MARGIN, bottom: FOOTER_H + 2 },
     styles: {
       font: 'helvetica',
-      fontSize: 7.5,
-      cellPadding: 2.4,
+      fontSize: 7.4,
+      cellPadding: { top: 2.6, right: 2.4, bottom: 2.6, left: 2.4 },
       textColor: C.ink as unknown as number[],
       lineColor: C.line as unknown as number[],
-      lineWidth: 0.2,
+      lineWidth: 0.15,
       overflow: 'linebreak',
       valign: 'middle',
+      fillColor: C.card as unknown as number[],
     },
     headStyles: {
       fillColor: C.ink as unknown as number[],
-      textColor: [255, 255, 255],
+      textColor: C.white as unknown as number[],
       fontStyle: 'bold',
-      fontSize: 7.5,
+      fontSize: 7,
+      cellPadding: { top: 3, right: 2.4, bottom: 3, left: 2.4 },
     },
     alternateRowStyles: {
-      fillColor: [252, 249, 245] as unknown as number[],
+      fillColor: [250, 246, 240] as unknown as number[],
     },
-    columnStyles: {
-      0: { cellWidth: 'auto' },
-    },
+    tableLineColor: C.line as unknown as number[],
+    tableLineWidth: 0.15,
   })
-  return doc.lastAutoTable?.finalY ?? startY
+  return (doc.lastAutoTable?.finalY ?? startY) + 2
 }
 
 /**
  * Relatório executivo do mês — gestão à vista para dono de vidraçaria.
  */
-export async function gerarRelatorioPdf(painel: PainelSocios) {
+export async function gerarRelatorioPdf(
+  painel: PainelSocios,
+  options: PdfReportOptions = {},
+) {
   const { jsPDF } = await import('jspdf')
   const mod = (await import('jspdf-autotable')) as unknown as {
     default: (doc: Doc, options: object) => void
@@ -481,6 +813,8 @@ export async function gerarRelatorioPdf(painel: PainelSocios) {
   } = painel
 
   const periodo = mesLabel(painel.mes)
+  const empresaNome =
+    options.empresaNome?.trim() || 'Sua vidraçaria'
   const geradoEm = new Date().toLocaleString('pt-BR', {
     day: '2-digit',
     month: 'short',
@@ -489,23 +823,17 @@ export async function gerarRelatorioPdf(painel: PainelSocios) {
     minute: '2-digit',
   })
 
-  // —— Página 1: Gestão à vista ——
-  paintPageBackground(doc)
-  let y = drawBrandHeader(doc, 0, {
-    titulo: 'Relatório do mês',
-    subtitulo: periodo,
-    geradoEm: `Gerado em ${geradoEm}`,
-  })
+  const ctxP1 = { periodo, secao: 'Gestão à vista' }
+  const ctxP2 = { periodo, secao: 'Mix & rentabilidade' }
+  const ctxP3 = { periodo, secao: 'Caixa & compromissos' }
 
-  setText(doc, C.muted)
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(8.5)
-  doc.text(
-    'Leitura rápida para decisão: o que vendeu, o que sobrou e o que entrou de dinheiro.',
-    14,
-    y,
-  )
-  y += 7
+  // —— Página 1 ——
+  paintPageBackground(doc)
+  let y = drawCoverHeader(doc, {
+    empresaNome,
+    periodo,
+    geradoEm,
+  })
 
   const lucroOk = resultado.lucrativo
   y = drawVerdictBanner(
@@ -519,11 +847,7 @@ export async function gerarRelatorioPdf(painel: PainelSocios) {
   )
 
   y = drawKpiGrid(doc, y, [
-    {
-      label: 'Faturamento',
-      value: money(resultado.faturamento),
-      tone: 'neutral',
-    },
+    { label: 'Faturamento', value: money(resultado.faturamento) },
     {
       label: 'Lucro operacional',
       value: money(resultado.lucroOperacional),
@@ -554,6 +878,7 @@ export async function gerarRelatorioPdf(painel: PainelSocios) {
     { label: 'Lucro', value: resultado.lucroOperacional, kind: 'result' },
   ])
 
+  y = ensureSpace(doc, y, 70, ctxP1)
   y = drawSectionTitle(doc, y, 'DRE × Caixa', 'Competência vs dinheiro')
   y = drawCompareCards(
     doc,
@@ -597,17 +922,18 @@ export async function gerarRelatorioPdf(painel: PainelSocios) {
     },
   )
 
-  setText(doc, C.muted)
-  doc.setFont('helvetica', 'italic')
-  doc.setFontSize(7.5)
   const leitura =
     visaoMes?.leitura ||
     'DRE = o que foi vendido no mês. Caixa = o que entrou/saiu de dinheiro — pode ser de vendas de outros meses.'
-  const leituraLines = doc.splitTextToSize(leitura, pageW(doc) - 28)
-  doc.text(leituraLines, 14, y)
-  y += leituraLines.length * 3.5 + 6
+  doc.setFont('helvetica', 'italic')
+  doc.setFontSize(7.5)
+  setText(doc, C.muted)
+  const leituraLines = doc.splitTextToSize(leitura, contentW(doc))
+  y = ensureSpace(doc, y, leituraLines.length * 3.4 + 6, ctxP1)
+  doc.text(leituraLines, MARGIN, y)
+  y += leituraLines.length * 3.4 + 7
 
-  y = ensureSpace(doc, y, 36)
+  y = ensureSpace(doc, y, 42, ctxP1)
   y = drawSectionTitle(doc, y, 'Rumo à meta', 'Gestão à vista')
   y = drawProgressRow(
     doc,
@@ -626,17 +952,6 @@ export async function gerarRelatorioPdf(painel: PainelSocios) {
     'Mínimo para zerar o mês',
   )
 
-  // Insights rápidos
-  y = ensureSpace(doc, y, 28)
-  setFill(doc, C.accentSoft)
-  roundedRect(doc, 14, y, pageW(doc) - 28, 26, 3, 'F')
-  setText(doc, C.ink)
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(8)
-  doc.text('O que olhar amanhã na oficina', 18, y + 7)
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(7.5)
-  setText(doc, C.muted)
   const topLinha = [...(rentabilidade.porLinha ?? [])].sort(
     (a, b) => b.lucro - a.lucro,
   )[0]
@@ -644,27 +959,23 @@ export async function gerarRelatorioPdf(painel: PainelSocios) {
   const receberAberto = contasAReceber?.totalEmAberto ?? 0
   const bullets = [
     topLinha
-      ? `• Linha que mais lucrou: ${topLinha.linha} (${money(topLinha.lucro)}) — priorize esse mix.`
-      : '• Ainda sem linhas com lucro no período — lance vendas com custos atrelados.',
+      ? `Linha que mais lucrou: ${topLinha.linha} (${money(topLinha.lucro)}) — priorize esse mix.`
+      : 'Ainda sem linhas com lucro no período — lance vendas com custos atrelados.',
     piorProduto
-      ? `• Atenção: ${piorProduto.produto} com lucro ${money(piorProduto.lucro)} — revise preço ou desperdício.`
-      : '• Sem alerta de produto fraco neste recorte.',
+      ? `Atenção: ${piorProduto.produto} com lucro ${money(piorProduto.lucro)} — revise preço ou desperdício.`
+      : 'Sem alerta de produto fraco neste recorte.',
     receberAberto > 0
-      ? `• Contas a receber em aberto: ${money(receberAberto)} — cobre clientes com vencimento próximo.`
-      : '• Nenhuma conta a receber em aberto neste mês.',
+      ? `Contas a receber em aberto: ${money(receberAberto)} — cobre clientes com vencimento próximo.`
+      : 'Nenhuma conta a receber em aberto neste mês.',
   ]
-  bullets.forEach((b, i) => {
-    doc.text(truncate(doc, b, pageW(doc) - 40), 18, y + 13 + i * 4)
-  })
+
+  y = ensureSpace(doc, y, 36, ctxP1)
+  y = drawInsightBox(doc, y, 'O que olhar amanhã na oficina', bullets)
 
   // —— Página 2: Mix ——
   doc.addPage()
   paintPageBackground(doc)
-  y = drawBrandHeader(doc, 0, {
-    titulo: 'Mix & rentabilidade',
-    subtitulo: periodo,
-    geradoEm: `Gerado em ${geradoEm}`,
-  })
+  y = drawContinuityHeader(doc, periodo, 'Mix & rentabilidade')
 
   y = drawSectionTitle(
     doc,
@@ -676,33 +987,40 @@ export async function gerarRelatorioPdf(painel: PainelSocios) {
     .sort((a, b) => b.lucro - a.lucro)
     .slice(0, 8)
     .map((l) => ({ label: l.linha || 'Sem linha', value: l.lucro }))
-  y = drawHBars(doc, y, linhas, {
+  y = drawHBars(doc, y, linhas, ctxP2, {
     valueColor: (v) => (v >= 0 ? C.success : C.danger),
   })
 
-  y = ensureSpace(doc, y, 20)
+  y = ensureSpace(doc, y, 28, ctxP2)
   y = drawSectionTitle(doc, y, 'Top produtos', 'Receita, custo e lucro')
   const produtos = [...rentabilidade.porProduto]
     .sort((a, b) => b.lucro - a.lucro)
     .slice(0, 12)
-  y = styledTable(
-    doc,
-    autoTable,
-    y,
-    ['Produto', 'Linha', 'Receita', 'Custo', 'Lucro', 'Vendas'],
-    produtos.map((p) => [
-      p.produto,
-      p.linha ?? '—',
-      money(p.receita),
-      money(p.custo),
-      money(p.lucro),
-      String(p.qtdVendas),
-    ]),
-  )
-  y += 8
+  if (!produtos.length) {
+    setText(doc, C.muted)
+    doc.setFontSize(8)
+    doc.text('Nenhum produto com movimento neste mês.', MARGIN, y)
+    y += 10
+  } else {
+    y = styledTable(
+      doc,
+      autoTable,
+      y,
+      ['Produto', 'Linha', 'Receita', 'Custo', 'Lucro', 'Vendas'],
+      produtos.map((p) => [
+        p.produto,
+        p.linha ?? '—',
+        money(p.receita),
+        money(p.custo),
+        money(p.lucro),
+        String(p.qtdVendas),
+      ]),
+    )
+    y += 6
+  }
 
   if (rentabilidade.porCliente?.length) {
-    y = ensureSpace(doc, y, 24)
+    y = ensureSpace(doc, y, 28, ctxP2)
     y = drawSectionTitle(doc, y, 'Top clientes', 'Quem mais contribuiu no mês')
     const clientes = [...rentabilidade.porCliente]
       .sort((a, b) => b.lucro - a.lucro)
@@ -723,56 +1041,30 @@ export async function gerarRelatorioPdf(painel: PainelSocios) {
     y += 6
   }
 
-  // Destaques mais/menos
-  y = ensureSpace(doc, y, 30)
-  const half = (pageW(doc) - 28 - 4) / 2
-  const paintHighlight = (
-    x: number,
-    title: string,
-    name: string,
-    value: string,
-    ok: boolean,
-  ) => {
-    setFill(doc, ok ? C.successSoft : C.dangerSoft)
-    roundedRect(doc, x, y, half, 20, 2.5, 'F')
-    setText(doc, ok ? C.success : C.danger)
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(7)
-    doc.text(title.toUpperCase(), x + 4, y + 6)
-    setText(doc, C.ink)
-    doc.setFontSize(9)
-    doc.text(truncate(doc, name, half - 8), x + 4, y + 12)
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(8)
-    doc.text(value, x + 4, y + 17)
-  }
-  if (rentabilidade.maisRentavel) {
-    paintHighlight(
-      14,
-      'Mais rentável',
-      rentabilidade.maisRentavel.produto,
-      money(rentabilidade.maisRentavel.lucro),
-      true,
-    )
-  }
-  if (rentabilidade.menosRentavel) {
-    paintHighlight(
-      14 + half + 4,
-      'Menos rentável',
-      rentabilidade.menosRentavel.produto,
-      money(rentabilidade.menosRentavel.lucro),
-      false,
-    )
-  }
+  y = ensureSpace(doc, y, 30, ctxP2)
+  y = drawHighlightPair(
+    doc,
+    y,
+    rentabilidade.maisRentavel
+      ? {
+          title: 'Mais rentável',
+          name: rentabilidade.maisRentavel.produto,
+          value: money(rentabilidade.maisRentavel.lucro),
+        }
+      : null,
+    rentabilidade.menosRentavel
+      ? {
+          title: 'Menos rentável',
+          name: rentabilidade.menosRentavel.produto,
+          value: money(rentabilidade.menosRentavel.lucro),
+        }
+      : null,
+  )
 
-  // —— Página 3: Caixa operacional ——
+  // —— Página 3: Caixa ——
   doc.addPage()
   paintPageBackground(doc)
-  y = drawBrandHeader(doc, 0, {
-    titulo: 'Caixa & compromissos',
-    subtitulo: periodo,
-    geradoEm: `Gerado em ${geradoEm}`,
-  })
+  y = drawContinuityHeader(doc, periodo, 'Caixa & compromissos')
 
   y = drawKpiGrid(doc, y, [
     {
@@ -805,7 +1097,7 @@ export async function gerarRelatorioPdf(painel: PainelSocios) {
   if (receberRows.length === 0) {
     setText(doc, C.muted)
     doc.setFontSize(8)
-    doc.text('Nenhuma entrada prevista neste mês.', 14, y)
+    doc.text('Nenhuma entrada prevista neste mês.', MARGIN, y)
     y += 10
   } else {
     y = styledTable(
@@ -820,35 +1112,37 @@ export async function gerarRelatorioPdf(painel: PainelSocios) {
         i.recebido ? 'Recebido' : 'Em aberto',
       ]),
     )
-    y += 8
+    y += 6
   }
 
-  y = ensureSpace(doc, y, 24)
+  y = ensureSpace(doc, y, 28, ctxP3)
   y = drawSectionTitle(
     doc,
     y,
     'Custos fixos',
     'O que pesa todo mês na vidraçaria',
   )
-  const fixos = (custosFixos.vigentes?.length
-    ? custosFixos.vigentes.map((v) => ({
-        nome: v.descricao,
-        venc: '—',
-        valor: v.valorMensal,
-        status: 'Vigente',
-      }))
-    : custosFixos.itens.map((i) => ({
-        nome: [i.categoria, i.subcategoria].filter(Boolean).join(' / ') || 'Custo',
-        venc: i.dataVencimento?.split('-').reverse().join('/') ?? '—',
-        valor: i.valorPrevisto,
-        status: i.status,
-      }))
+  const fixos = (
+    custosFixos.vigentes?.length
+      ? custosFixos.vigentes.map((v) => ({
+          nome: v.descricao,
+          venc: '—',
+          valor: v.valorMensal,
+          status: 'Vigente',
+        }))
+      : custosFixos.itens.map((i) => ({
+          nome:
+            [i.categoria, i.subcategoria].filter(Boolean).join(' / ') || 'Custo',
+          venc: i.dataVencimento?.split('-').reverse().join('/') ?? '—',
+          valor: i.valorPrevisto,
+          status: i.status,
+        }))
   ).slice(0, 14)
 
   if (!fixos.length) {
     setText(doc, C.muted)
     doc.setFontSize(8)
-    doc.text('Nenhum custo fixo cadastrado para o período.', 14, y)
+    doc.text('Nenhum custo fixo cadastrado para o período.', MARGIN, y)
     y += 10
   } else {
     y = styledTable(
@@ -858,39 +1152,27 @@ export async function gerarRelatorioPdf(painel: PainelSocios) {
       ['Descrição', 'Vencimento', 'Valor', 'Status'],
       fixos.map((f) => [f.nome, f.venc, money(f.valor), f.status]),
     )
-    y += 8
+    y += 6
   }
 
-  y = ensureSpace(doc, y, 32)
-  setFill(doc, C.card)
-  setStroke(doc, C.line)
-  doc.setLineWidth(0.35)
-  roundedRect(doc, 14, y, pageW(doc) - 28, 28, 3, 'FD')
-  setText(doc, C.ink)
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(9)
-  doc.text('Fechamento do mês — checklist do dono', 18, y + 7)
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(7.5)
-  setText(doc, C.muted)
   const checklist = [
-    `1. Conferir contas a receber em aberto (${money(contasAReceber?.totalEmAberto ?? 0)}) e marcar Recebido quando o cliente pagar.`,
-    `2. Validar se o faturamento cobre os fixos: ${projecao.cobreCustosFixos ? 'sim' : 'ainda não'} (sobra/falta ${money(projecao.sobraOuFalta)}).`,
-    `3. Empurrar a linha/produto mais rentável e revisar o item com pior lucro antes de fechar orçamentos.`,
-    `4. Meta confortável: ${projecao.metaConfortavelFaturamento == null ? '—' : money(projecao.metaConfortavelFaturamento)} · equilíbrio: ${projecao.pontoEquilibrioFaturamento == null ? '—' : money(projecao.pontoEquilibrioFaturamento)}.`,
+    `Conferir contas a receber em aberto (${money(contasAReceber?.totalEmAberto ?? 0)}) e marcar Recebido quando o cliente pagar.`,
+    `Validar se o faturamento cobre os fixos: ${projecao.cobreCustosFixos ? 'sim' : 'ainda não'} (sobra/falta ${money(projecao.sobraOuFalta)}).`,
+    'Empurrar a linha/produto mais rentável e revisar o item com pior lucro antes de fechar orçamentos.',
+    `Meta confortável: ${projecao.metaConfortavelFaturamento == null ? '—' : money(projecao.metaConfortavelFaturamento)} · equilíbrio: ${projecao.pontoEquilibrioFaturamento == null ? '—' : money(projecao.pontoEquilibrioFaturamento)}.`,
   ]
-  checklist.forEach((line, i) => {
-    doc.text(doc.splitTextToSize(line, pageW(doc) - 40)[0], 18, y + 13 + i * 4)
-  })
 
-  // Numeração de páginas
+  y = ensureSpace(doc, y, 48, ctxP3)
+  y = drawChecklistBox(
+    doc,
+    y,
+    'Fechamento do mês — checklist do dono',
+    checklist,
+  )
+
   const total = doc.getNumberOfPages()
   for (let i = 1; i <= total; i += 1) {
     doc.setPage(i)
-    // re-paint footer strip cleanly
-    const h = pageH(doc)
-    setFill(doc, C.paper)
-    doc.rect(0, h - 14, pageW(doc), 14, 'F')
     drawFooter(doc, i, total)
   }
 
