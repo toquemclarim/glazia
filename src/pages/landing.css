@@ -52,8 +52,8 @@
   position: absolute;
   inset: 0;
   /* blur leve — fábrica permanece legível */
-  backdrop-filter: blur(9px);
-  -webkit-backdrop-filter: blur(9px);
+  backdrop-filter: blur(15px);
+  -webkit-backdrop-filter: blur(15px);
   background:
     radial-gradient(ellipse 70% 50% at 75% 30%, rgba(201, 160, 106, 0.12), transparent 60%),
     radial-gradient(ellipse 40% 35% at 20% 70%, rgba(255, 255, 255, 0.12), transparent 55%);
