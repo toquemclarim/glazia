@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Eye, EyeOff, Moon, Sun } from 'lucide-react'
+import { BrandLogo } from '../components/BrandLogo'
 import { useApp } from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
 
@@ -55,7 +56,7 @@ export function Login() {
 
       <div className="glass login-card fade-up">
         <div className="login-logo">
-          <img src="/logo-full.png" alt="Glazia" />
+          <BrandLogo variant="full" size="auth" />
           <p>
             Controle financeiro
             <br />

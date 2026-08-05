@@ -191,30 +191,74 @@ img {
   margin-bottom: 1.25rem;
 }
 
-.sidebar-brand img {
-  width: 48px;
-  height: 48px;
-  object-fit: contain;
-}
-
-.sidebar-brand-text {
+.sidebar-brand-meta {
   display: flex;
   flex-direction: column;
-  gap: 0.1rem;
+  gap: 0.15rem;
+  min-width: 0;
 }
 
-.sidebar-brand-text strong {
-  font-size: 1.15rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-}
-
-.sidebar-brand-text span {
+.sidebar-brand-meta span {
   font-size: 0.7rem;
   color: var(--text-muted);
   font-weight: 400;
   letter-spacing: 0.06em;
   text-transform: uppercase;
+}
+
+/* —— Logotipo oficial (BrandLogo) —— */
+.brand-logo {
+  display: block;
+  object-fit: contain;
+  flex-shrink: 0;
+  background: transparent;
+  filter: none;
+  box-shadow: none;
+}
+
+.brand-logo-full.brand-logo-nav {
+  height: 36px;
+  width: auto;
+  max-width: 148px;
+}
+
+.brand-logo-full.brand-logo-hero {
+  height: clamp(52px, 11vw, 78px);
+  width: auto;
+  max-width: min(360px, 88vw);
+}
+
+.brand-logo-full.brand-logo-auth {
+  height: clamp(72px, 16vw, 110px);
+  width: auto;
+  max-width: min(300px, 82vw);
+}
+
+.brand-logo-full.brand-logo-sidebar {
+  height: 40px;
+  width: auto;
+  max-width: 168px;
+}
+
+.brand-logo-full.brand-logo-ops {
+  height: 34px;
+  width: auto;
+  max-width: 140px;
+}
+
+.brand-logo-mark.brand-logo-mark,
+.brand-logo-mark.brand-logo-nav {
+  width: 40px;
+  height: 40px;
+}
+
+.brand-logo,
+.brand-logo-tone-light,
+.brand-logo-tone-dark {
+  background: transparent !important;
+  mix-blend-mode: normal !important;
+  filter: none !important;
+  box-shadow: none !important;
 }
 
 .nav-list {
@@ -652,17 +696,9 @@ table.data tr:hover td {
   margin-bottom: 2rem;
 }
 
+.login-logo .brand-logo,
 .login-logo img {
-  width: min(300px, 82vw);
-  height: auto;
-  max-height: 110px;
-  object-fit: contain;
   animation: logoFloat 4s ease-in-out infinite;
-  mix-blend-mode: lighten;
-}
-
-[data-theme='light'] .login-logo img {
-  mix-blend-mode: normal;
 }
 
 .login-logo p {
@@ -672,15 +708,13 @@ table.data tr:hover td {
   font-weight: 400;
 }
 
-.sidebar-brand img,
-.mobile-logo,
-.loading-logo {
+.mobile-logo:not(.brand-logo),
+.loading-logo:not(.brand-logo) {
   mix-blend-mode: lighten;
 }
 
-[data-theme='light'] .sidebar-brand img,
-[data-theme='light'] .mobile-logo,
-[data-theme='light'] .loading-logo {
+[data-theme='light'] .mobile-logo:not(.brand-logo),
+[data-theme='light'] .loading-logo:not(.brand-logo) {
   mix-blend-mode: normal;
 }
 
@@ -715,11 +749,7 @@ table.data tr:hover td {
   background: rgba(240, 244, 246, 0.9);
 }
 
-.loading-logo {
-  width: 88px;
-  height: auto;
-  max-height: 88px;
-  object-fit: contain;
+.loading-logo.brand-logo {
   margin-bottom: 1.5rem;
   animation: pulseAccent 1.4s ease-in-out infinite;
 }
@@ -907,11 +937,13 @@ table.data tr:hover td {
   margin-top: 0.5rem;
 }
 
-.mobile-logo {
+.mobile-logo.brand-logo {
   display: none;
+}
+
+.mobile-logo.brand-logo-mark {
   width: 36px;
   height: 36px;
-  object-fit: contain;
 }
 
 @keyframes logoFloat {
@@ -1006,7 +1038,7 @@ table.data tr:hover td {
     display: inline-flex;
   }
 
-  .mobile-logo {
+  .mobile-logo.brand-logo {
     display: block;
   }
 
@@ -4411,26 +4443,17 @@ table.data tr:hover td {
 
 .ops-rail-brand {
   display: flex;
-  align-items: center;
-  gap: 0.7rem;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.35rem;
   padding: 0.35rem 0.4rem;
-}
-
-.ops-rail-brand img {
-  width: 34px;
-  height: 34px;
-  object-fit: contain;
-}
-
-.ops-rail-brand strong {
-  display: block;
-  font-size: 0.95rem;
-  letter-spacing: 0.08em;
 }
 
 .ops-rail-brand span {
   font-size: 0.72rem;
   color: var(--text-muted);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 
 .ops-rail-nav {
@@ -5197,24 +5220,7 @@ table.data tr:hover td {
 .signup-brand {
   display: inline-flex;
   align-items: center;
-  gap: 0.55rem;
   margin-bottom: 0.85rem;
-}
-
-.signup-brand img {
-  display: block;
-  width: 28px;
-  height: auto;
-  object-fit: contain;
-  mix-blend-mode: normal;
-  background: transparent;
-}
-
-.signup-brand span {
-  font-weight: 800;
-  letter-spacing: 0.16em;
-  font-size: 1.05rem;
-  color: var(--text);
 }
 
 .signup-logo {

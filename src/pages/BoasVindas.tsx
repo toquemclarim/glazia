@@ -1,5 +1,6 @@
 import { ArrowRight, ClipboardList, LineChart, Wallet } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
+import { BrandLogo } from '../components/BrandLogo'
 import { useApp } from '../context/AppContext'
 import { clearQueuedWelcome, markWelcomeSeen } from '../utils/welcome'
 import './boasVindas.css'
@@ -39,8 +40,7 @@ export function BoasVindas() {
 
       <main className="welcome-shell">
         <header className="welcome-brand">
-          <img src="/logo-mark.svg" alt="" width={36} height={54} />
-          <span>GLAZIA</span>
+          <BrandLogo variant="full" size="nav" />
         </header>
 
         <p className="welcome-kicker">Conta pronta</p>

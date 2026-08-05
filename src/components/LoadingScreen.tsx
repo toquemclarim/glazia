@@ -1,6 +1,7 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import { useApp } from '../context/AppContext'
 import { getAccessToken } from '../services/api'
+import { BrandLogo } from './BrandLogo'
 
 export function LoadingScreen() {
   const { loading, bootstrapping } = useApp()
@@ -17,7 +18,11 @@ export function LoadingScreen() {
           exit={{ opacity: 0 }}
           transition={{ duration: 0.2 }}
         >
-          <img src="/logo.png" alt="Glazia" className="loading-logo" />
+          <BrandLogo
+            variant="full"
+            size="auth"
+            className="loading-logo"
+          />
           <div className="loading-bar">
             <span />
           </div>

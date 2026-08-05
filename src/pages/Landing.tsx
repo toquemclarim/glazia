@@ -15,6 +15,7 @@ import {
   Users,
   Wallet,
 } from 'lucide-react'
+import { BrandLogo } from '../components/BrandLogo'
 import { useApp } from '../context/AppContext'
 import { PLAN_COPY } from '../lib/plan'
 import './landing.css'
@@ -131,19 +132,81 @@ const FAQ = [
   },
 ]
 
-function LogoMark({ className = '' }: { className?: string }) {
+function LogoMark({
+  className = '',
+  size = 'nav',
+}: {
+  className?: string
+  size?: 'nav' | 'hero'
+}) {
   return (
     <span className={`lp-logo ${className}`}>
-      <img
-        src="/logo-mark.svg"
-        alt=""
-        width={28}
-        height={42}
-        className="lp-logo-mark"
-        draggable={false}
+      <BrandLogo
+        variant="full"
+        size={size}
+        tone="light"
+        className="lp-logo-img"
       />
-      <span className="lp-logo-word">GLAZIA</span>
     </span>
+  )
+}
+
+function HeroHoloStage() {
+  return (
+    <div className="lp-hero-stage" aria-hidden="true">
+      <div className="lp-hero-glow lp-hero-glow-a" />
+      <div className="lp-hero-glow lp-hero-glow-b" />
+      <div className="lp-hero-particles" />
+
+      <div className="lp-holo lp-holo-kpi lp-holo-float-a">
+        <span className="lp-holo-label">Visão do mês</span>
+        <strong>Mês rentável</strong>
+        <em>+ R$ 5.808</em>
+        <div className="lp-holo-bars">
+          <i style={{ height: '78%' }} />
+          <i style={{ height: '42%' }} />
+          <i style={{ height: '58%' }} />
+          <i style={{ height: '90%' }} />
+        </div>
+      </div>
+
+      <div className="lp-holo lp-holo-cash lp-holo-float-b">
+        <span className="lp-holo-label">Fluxo de caixa</span>
+        <strong>Caixa no azul</strong>
+        <div className="lp-holo-row">
+          <span>Recebido</span>
+          <b>R$ 12.4k</b>
+        </div>
+        <div className="lp-holo-row">
+          <span>Em aberto</span>
+          <b>R$ 3.1k</b>
+        </div>
+      </div>
+
+      <div className="lp-holo lp-holo-mix lp-holo-float-c">
+        <span className="lp-holo-label">Lucro por linha</span>
+        <div className="lp-holo-chip">
+          <span>SUPREMA</span>
+          <i style={{ width: '86%' }} />
+        </div>
+        <div className="lp-holo-chip">
+          <span>GOLD</span>
+          <i style={{ width: '62%' }} />
+        </div>
+      </div>
+
+      <div className="lp-hero-figure">
+        <img
+          src="/hero-vidraceiro-clear.png"
+          alt=""
+          width={682}
+          height={1024}
+          loading="eager"
+          decoding="async"
+        />
+        <div className="lp-hero-tablet-glow" />
+      </div>
+    </div>
   )
 }
 
@@ -195,10 +258,10 @@ export function Landing() {
             <a href="#contato">Contato</a>
           </nav>
           <div className="lp-nav-actions">
-            <Link to="/login" className="btn btn-ghost">
+            <Link to="/login" className="lp-btn lp-btn-ghost">
               Entrar
             </Link>
-            <Link to="/criar-conta" className="btn btn-accent">
+            <Link to="/criar-conta" className="lp-btn lp-btn-metal">
               Criar conta
             </Link>
           </div>
@@ -207,60 +270,72 @@ export function Landing() {
 
       <main id="conteudo">
         <section id="topo" className="lp-hero">
-          <div className="lp-hero-copy lp-hero-in">
-            <p className="lp-kicker">Feito para vidraçarias e esquadrias</p>
-            <LogoMark className="lp-logo-hero" />
-            <h1>Descubra para onde o dinheiro da sua vidraçaria está indo.</h1>
-            <p className="lp-hero-lead">
-              Controle financeiro simples e inteligente: resultado do mês,
-              caixa, custos e o que ainda falta pagar — tudo no mesmo lugar.
-            </p>
-            <div className="lp-hero-cta">
-              <Link to="/criar-conta" className="btn btn-accent lp-cta-main">
-                Criar conta gratuitamente
-                <ArrowRight size={18} />
-              </Link>
-              <Link to="/login" className="btn btn-ghost">
-                Entrar
-              </Link>
+          <div className="lp-hero-atmosphere" aria-hidden="true" />
+          <div className="lp-hero-grid">
+            <div className="lp-hero-copy lp-hero-in">
+              <p className="lp-kicker">Feito para vidraçarias e esquadrias</p>
+              <LogoMark className="lp-logo-hero" size="hero" />
+              <h1>
+                Descubra para onde o dinheiro da sua vidraçaria está indo.
+              </h1>
+              <p className="lp-hero-lead">
+                Controle financeiro simples e inteligente: resultado do mês,
+                caixa, custos e o que ainda falta pagar — tudo no mesmo lugar.
+              </p>
+              <div className="lp-hero-cta">
+                <Link to="/criar-conta" className="lp-btn lp-btn-metal lp-cta-main">
+                  Criar conta gratuitamente
+                  <ArrowRight size={18} />
+                </Link>
+                <Link to="/login" className="lp-btn lp-btn-glass">
+                  Entrar
+                </Link>
+              </div>
+              <p className="lp-micro">
+                Experimente gratuitamente durante 14 dias. Sem cartão de
+                crédito.
+              </p>
             </div>
-            <p className="lp-micro">
-              Experimente gratuitamente durante 14 dias. Sem cartão de crédito.
-            </p>
-          </div>
 
-          <div className="lp-hero-figure lp-hero-in-delay">
-            <img
-              src="/hero-vidraceiro-clear.png"
-              alt="Profissional de vidraçaria acompanhando o crescimento no tablet"
-              width={682}
-              height={1024}
-              loading="eager"
-              decoding="async"
-            />
+            <div
+              className="lp-hero-visual lp-hero-in-delay"
+              role="img"
+              aria-label="Profissional de vidraçaria com tablet e painéis holográficos de KPIs do Glazia"
+            >
+              <HeroHoloStage />
+            </div>
           </div>
         </section>
 
-        <section id="beneficios" className="lp-section">
-          <div className="lp-section-head" data-reveal>
-            <p className="lp-kicker">Benefícios</p>
-            <h2>Menos achismo. Mais decisão.</h2>
-            <p>
-              Cada recurso vira uma resposta clara para quem toca a empresa no
-              dia a dia.
-            </p>
+        <section id="beneficios" className="lp-section lp-benefits">
+          <div className="lp-benefits-panel" data-reveal>
+            <div className="lp-section-head">
+              <p className="lp-kicker">Benefícios</p>
+              <h2>Menos achismo. Mais decisão.</h2>
+              <p>
+                Painéis holográficos de KPIs, dashboards flutuantes e gráficos
+                de fluxo de caixa — a mesma clareza do painel, na operação do
+                dia a dia.
+              </p>
+            </div>
+            <ul className="lp-benefit-list">
+              {BENEFICIOS.map((item, i) => (
+                <li
+                  key={item.title}
+                  data-reveal
+                  style={{ transitionDelay: `${i * 45}ms` }}
+                >
+                  <span className="lp-benefit-icon">
+                    <item.icon size={22} strokeWidth={1.75} />
+                  </span>
+                  <div>
+                    <h3>{item.title}</h3>
+                    <p>{item.body}</p>
+                  </div>
+                </li>
+              ))}
+            </ul>
           </div>
-          <ul className="lp-benefit-list">
-            {BENEFICIOS.map((item, i) => (
-              <li key={item.title} data-reveal style={{ transitionDelay: `${i * 45}ms` }}>
-                <item.icon size={22} strokeWidth={1.75} />
-                <div>
-                  <h3>{item.title}</h3>
-                  <p>{item.body}</p>
-                </div>
-              </li>
-            ))}
-          </ul>
         </section>
 
         <section id="recursos" className="lp-section lp-how">

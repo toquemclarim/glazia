@@ -2,6 +2,7 @@ import { motion } from 'framer-motion'
 import { Building2, LogOut, Moon, Sun } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { BrandLogo } from '../../components/BrandLogo'
 import { useApp } from '../../context/AppContext'
 import { useTheme } from '../../context/ThemeContext'
 
@@ -14,11 +15,8 @@ export function OpsLayout({ children }: { children: ReactNode }) {
     <div className="ops-shell">
       <aside className="ops-rail">
         <div className="ops-rail-brand">
-          <img src="/logo.png" alt="Glazia" />
-          <div>
-            <strong>GLAZIA</strong>
-            <span>Platform Ops</span>
-          </div>
+          <BrandLogo variant="full" size="ops" />
+          <span>Platform Ops</span>
         </div>
 
         <nav className="ops-rail-nav">

@@ -18,6 +18,7 @@ import { useApp } from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
 import { onTourAction } from '../tour/events'
 import { AiChat } from './AiChat'
+import { BrandLogo } from './BrandLogo'
 import { GuidedTour } from './GuidedTour'
 import { TrialBanner } from './TrialBanner'
 
@@ -111,9 +112,8 @@ export function Layout({ children }: { children: ReactNode }) {
 
       <aside className={`sidebar${menuOpen ? ' open' : ''}`}>
         <div className="sidebar-brand">
-          <img src="/logo.png" alt="Glazia" />
-          <div className="sidebar-brand-text">
-            <strong>GLAZIA</strong>
+          <BrandLogo variant="full" size="sidebar" />
+          <div className="sidebar-brand-meta">
             <span>Analytics</span>
           </div>
           <button
@@ -185,8 +185,12 @@ export function Layout({ children }: { children: ReactNode }) {
             >
               <Menu size={20} />
             </button>
-            <img src="/logo.png" alt="" className="mobile-logo" />
-            <h1>{TITLES[location.pathname] ?? 'Glazia'}</h1>
+            <BrandLogo
+              variant="mark"
+              size="mark"
+              className="mobile-logo"
+            />
+            <h1>{TITLES[location.pathname] ?? 'Início'}</h1>
           </div>
           <div className="topbar-actions">
             <button

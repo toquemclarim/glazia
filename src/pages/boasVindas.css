@@ -61,21 +61,7 @@
 .welcome-brand {
   display: inline-flex;
   align-items: center;
-  gap: 0.65rem;
   margin-bottom: 1.75rem;
-}
-
-.welcome-brand img {
-  display: block;
-  width: 28px;
-  height: auto;
-  background: transparent;
-}
-
-.welcome-brand span {
-  font-weight: 800;
-  letter-spacing: 0.18em;
-  font-size: 1.05rem;
 }
 
 .welcome-kicker {

@@ -1,6 +1,7 @@
 import { Loader2, Lock } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { BrandLogo } from '../components/BrandLogo'
 import { useApp } from '../context/AppContext'
 import { alterarSenhaConta } from '../services/api'
 import { queueWelcomeScreen } from '../utils/welcome'
@@ -60,7 +61,7 @@ export function PrimeiroAcesso() {
     <div className="login-page">
       <div className="glass login-card fade-up">
         <div className="login-logo">
-          <img src="/logo-full.png" alt="Glazia" />
+          <BrandLogo variant="full" size="auth" />
           <p>Primeiro acesso</p>
         </div>
 

@@ -1,6 +1,7 @@
 import { ArrowLeft, ArrowRight, Eye, EyeOff } from 'lucide-react'
 import { useMemo, useState, type FormEvent } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
+import { BrandLogo } from '../components/BrandLogo'
 import { useApp } from '../context/AppContext'
 import { queueWelcomeScreen } from '../utils/welcome'
 
@@ -117,9 +118,8 @@ export function CriarConta() {
           Voltar
         </Link>
 
-        <div className="signup-brand" aria-label="Glazia">
-          <img src="/logo-mark.svg" alt="" width={28} height={42} />
-          <span>GLAZIA</span>
+        <div className="signup-brand">
+          <BrandLogo variant="full" size="nav" />
         </div>
         <h1>Criar conta</h1>
         <p className="signup-sub">

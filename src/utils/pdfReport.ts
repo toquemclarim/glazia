@@ -91,42 +91,46 @@ function truncate(doc: Doc, text: string, maxW: number) {
   return `${t}…`
 }
 
+type LogoAssets = {
+  full: string
+  mark: string
+}
+
+async function loadPngDataUrl(path: string): Promise<string> {
+  const res = await fetch(path)
+  if (!res.ok) throw new Error(`Falha ao carregar ${path}`)
+  const blob = await res.blob()
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(String(reader.result))
+    reader.onerror = () => reject(new Error(`Falha ao ler ${path}`))
+    reader.readAsDataURL(blob)
+  })
+}
+
+async function loadLogoAssets(): Promise<LogoAssets> {
+  const [full, mark] = await Promise.all([
+    loadPngDataUrl('/logo-full-clear.png'),
+    loadPngDataUrl('/logo-mark-clear.png').catch(() =>
+      loadPngDataUrl('/logo-full-clear.png'),
+    ),
+  ])
+  return { full, mark }
+}
+
 function paintPageBackground(doc: Doc) {
   setFill(doc, C.paper)
   doc.rect(0, 0, pageW(doc), pageH(doc), 'F')
-  // textura suave no topo
   setFill(doc, C.paperDeep)
   doc.rect(0, 0, pageW(doc), 4, 'F')
 }
 
-/** Marca Glazia — dois planos em bronze */
-function drawLogoMark(doc: Doc, x: number, y: number, scale = 1) {
-  const s = scale
-  setFill(doc, C.accentDeep)
-  doc.triangle(x, y + 2 * s, x + 4.2 * s, y, x + 4.2 * s, y + 11 * s, 'F')
-  doc.triangle(x, y + 2 * s, x + 4.2 * s, y + 11 * s, x, y + 12.5 * s, 'F')
-  setFill(doc, C.accent)
-  doc.triangle(
-    x + 3.6 * s,
-    y + 1.2 * s,
-    x + 7.8 * s,
-    y,
-    x + 7.8 * s,
-    y + 10.2 * s,
-    'F',
-  )
-  doc.triangle(
-    x + 3.6 * s,
-    y + 1.2 * s,
-    x + 7.8 * s,
-    y + 10.2 * s,
-    x + 3.6 * s,
-    y + 11.4 * s,
-    'F',
-  )
-}
-
-function drawFooter(doc: Doc, pageIndex: number, totalPages: number) {
+function drawFooter(
+  doc: Doc,
+  pageIndex: number,
+  totalPages: number,
+  logos: LogoAssets,
+) {
   const w = pageW(doc)
   const h = pageH(doc)
   setFill(doc, C.paper)
@@ -134,10 +138,16 @@ function drawFooter(doc: Doc, pageIndex: number, totalPages: number) {
   setStroke(doc, C.line)
   doc.setLineWidth(0.25)
   doc.line(MARGIN, h - FOOTER_H + 2, w - MARGIN, h - FOOTER_H + 2)
+
+  // logotipo pequeno no rodapé (sem texto tipado)
+  const logoH = 5.5
+  const logoW = logoH * (576 / 199)
+  doc.addImage(logos.full, 'PNG', MARGIN, h - 9.2, logoW, logoH)
+
   setText(doc, C.dim)
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(7)
-  doc.text('Glazia · financeiro para vidraçarias', MARGIN, h - 5)
+  doc.text('Financeiro para vidraçarias', MARGIN + logoW + 3, h - 5)
   doc.text(`Página ${pageIndex} de ${totalPages}`, w - MARGIN, h - 5, {
     align: 'right',
   })
@@ -147,32 +157,35 @@ function ensureSpace(
   doc: Doc,
   y: number,
   need: number,
-  ctx: { periodo: string; secao: string },
+  ctx: { periodo: string; secao: string; logos: LogoAssets },
 ) {
   if (y + need <= pageH(doc) - FOOTER_H - 4) return y
   doc.addPage()
   paintPageBackground(doc)
-  return drawContinuityHeader(doc, ctx.periodo, ctx.secao)
+  return drawContinuityHeader(doc, ctx.periodo, ctx.secao, ctx.logos)
 }
 
-function drawContinuityHeader(doc: Doc, periodo: string, secao: string) {
+function drawContinuityHeader(
+  doc: Doc,
+  periodo: string,
+  secao: string,
+  logos: LogoAssets,
+) {
   const w = pageW(doc)
-  setFill(doc, C.ink)
-  doc.rect(0, 0, w, 11, 'F')
+  setFill(doc, C.card)
+  doc.rect(0, 0, w, 14, 'F')
   setFill(doc, C.accent)
-  doc.rect(0, 11, w, 1.4, 'F')
+  doc.rect(0, 14, w, 1.6, 'F')
 
-  drawLogoMark(doc, MARGIN, 1.6, 0.55)
-  setText(doc, C.white)
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(8)
-  doc.text('GLAZIA', MARGIN + 7, 7)
+  const logoH = 8
+  const logoW = logoH * (576 / 199)
+  doc.addImage(logos.full, 'PNG', MARGIN, 3, logoW, logoH)
 
-  setText(doc, C.accentSoft)
+  setText(doc, C.muted)
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(7.5)
-  doc.text(`${secao}  ·  ${periodo}`, w - MARGIN, 7, { align: 'right' })
-  return 18
+  doc.text(`${secao}  ·  ${periodo}`, w - MARGIN, 8.5, { align: 'right' })
+  return 20
 }
 
 function drawCoverHeader(
@@ -181,41 +194,39 @@ function drawCoverHeader(
     empresaNome: string
     periodo: string
     geradoEm: string
+    logos: LogoAssets
   },
 ) {
   const w = pageW(doc)
 
-  // faixa editorial
-  setFill(doc, C.ink)
-  doc.rect(0, 0, w, 42, 'F')
+  // faixa clara para o logotipo oficial aparecer nítido
+  setFill(doc, C.card)
+  doc.rect(0, 0, w, 38, 'F')
   setFill(doc, C.accent)
-  doc.rect(0, 42, w, 2.4, 'F')
+  doc.rect(0, 38, w, 2.2, 'F')
+  setStroke(doc, C.line)
+  doc.setLineWidth(0.25)
+  doc.line(0, 0, w, 0)
 
-  // brilho sutil
-  setFill(doc, [40, 34, 28])
-  doc.rect(0, 0, w * 0.38, 42, 'F')
-
-  drawLogoMark(doc, MARGIN, 8, 1.15)
-  setText(doc, C.white)
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(18)
-  doc.text('GLAZIA', MARGIN + 14, 16)
-
-  setText(doc, C.accentSoft)
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(8)
-  doc.text('Gestão financeira · vidraçarias & esquadrias', MARGIN + 14, 22)
+  const logoH = 16
+  const logoW = logoH * (576 / 199)
+  doc.addImage(opts.logos.full, 'PNG', MARGIN, 8, logoW, logoH)
 
   setText(doc, C.dim)
+  doc.setFont('helvetica', 'normal')
   doc.setFontSize(7.5)
   doc.text(`Gerado em ${opts.geradoEm}`, w - MARGIN, 14, { align: 'right' })
-
-  setText(doc, C.white)
+  setText(doc, C.accentDeep)
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(9)
   doc.text('RELATÓRIO DO MÊS', w - MARGIN, 22, { align: 'right' })
 
-  let y = 52
+  setText(doc, C.muted)
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(7.5)
+  doc.text('Gestão financeira · vidraçarias & esquadrias', MARGIN, 30)
+
+  let y = 48
   setText(doc, C.muted)
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(8)
@@ -234,9 +245,8 @@ function drawCoverHeader(
   doc.text(opts.periodo, MARGIN, y)
 
   y += 5
-  setStroke(doc, C.accent)
-  doc.setLineWidth(1.1)
-  doc.line(MARGIN, y, MARGIN + 28, y)
+  setFill(doc, C.accent)
+  roundedRect(doc, MARGIN, y, 22, 1.2, 0.5, 'F')
 
   y += 6
   setText(doc, C.muted)
@@ -478,7 +488,7 @@ function drawHBars(
   doc: Doc,
   y: number,
   rows: Array<{ label: string; value: number }>,
-  ctx: { periodo: string; secao: string },
+  ctx: { periodo: string; secao: string; logos: LogoAssets },
   opts?: { valueColor?: (v: number) => RGB },
 ) {
   if (!rows.length) {
@@ -823,9 +833,11 @@ export async function gerarRelatorioPdf(
     minute: '2-digit',
   })
 
-  const ctxP1 = { periodo, secao: 'Gestão à vista' }
-  const ctxP2 = { periodo, secao: 'Mix & rentabilidade' }
-  const ctxP3 = { periodo, secao: 'Caixa & compromissos' }
+  const logos = await loadLogoAssets()
+
+  const ctxP1 = { periodo, secao: 'Gestão à vista', logos }
+  const ctxP2 = { periodo, secao: 'Mix & rentabilidade', logos }
+  const ctxP3 = { periodo, secao: 'Caixa & compromissos', logos }
 
   // —— Página 1 ——
   paintPageBackground(doc)
@@ -833,6 +845,7 @@ export async function gerarRelatorioPdf(
     empresaNome,
     periodo,
     geradoEm,
+    logos,
   })
 
   const lucroOk = resultado.lucrativo
@@ -975,7 +988,7 @@ export async function gerarRelatorioPdf(
   // —— Página 2: Mix ——
   doc.addPage()
   paintPageBackground(doc)
-  y = drawContinuityHeader(doc, periodo, 'Mix & rentabilidade')
+  y = drawContinuityHeader(doc, periodo, 'Mix & rentabilidade', logos)
 
   y = drawSectionTitle(
     doc,
@@ -1064,7 +1077,7 @@ export async function gerarRelatorioPdf(
   // —— Página 3: Caixa ——
   doc.addPage()
   paintPageBackground(doc)
-  y = drawContinuityHeader(doc, periodo, 'Caixa & compromissos')
+  y = drawContinuityHeader(doc, periodo, 'Caixa & compromissos', logos)
 
   y = drawKpiGrid(doc, y, [
     {
@@ -1173,7 +1186,7 @@ export async function gerarRelatorioPdf(
   const total = doc.getNumberOfPages()
   for (let i = 1; i <= total; i += 1) {
     doc.setPage(i)
-    drawFooter(doc, i, total)
+    drawFooter(doc, i, total, logos)
   }
 
   doc.save(`glazia-relatorio-${painel.mes}.pdf`)

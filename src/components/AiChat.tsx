@@ -381,7 +381,7 @@ export function AiChat() {
 
             <header className="ai-chat-header">
               <div className="ai-chat-header-brand">
-                <img src="/logo.png" alt="" className="ai-chat-avatar" />
+                <img src="/logo-mark-clear.png" alt="" className="ai-chat-avatar" />
                 <div>
                   <strong id={titleId}>Consulta rápida</strong>
                   <span className="ai-chat-status">
@@ -423,7 +423,7 @@ export function AiChat() {
                 >
                   {message.role === 'bot' && (
                     <img
-                      src="/logo.png"
+                      src="/logo-mark-clear.png"
                       alt=""
                       className="ai-chat-bubble-avatar"
                     />
@@ -436,7 +436,7 @@ export function AiChat() {
               {typing && (
                 <div className="ai-chat-row bot">
                   <img
-                    src="/logo.png"
+                    src="/logo-mark-clear.png"
                     alt=""
                     className="ai-chat-bubble-avatar"
                   />

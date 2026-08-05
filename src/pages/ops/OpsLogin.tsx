@@ -2,6 +2,7 @@ import { motion } from 'framer-motion'
 import { ArrowRight, Moon, Sun } from 'lucide-react'
 import { useState } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
+import { BrandLogo } from '../../components/BrandLogo'
 import { useApp } from '../../context/AppContext'
 import { useTheme } from '../../context/ThemeContext'
 
@@ -50,7 +51,10 @@ export function OpsLogin() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
       >
-        <p className="ops-kicker">Glazia Platform</p>
+        <BrandLogo variant="full" size="auth" />
+        <p className="ops-kicker" style={{ marginTop: '1rem' }}>
+          Platform
+        </p>
         <h1 className="ops-display">Ops Console</h1>
         <p className="ops-login-sub">
           Console interno para provisionar empresas, planos e acesso dos
