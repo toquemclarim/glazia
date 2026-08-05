@@ -19,8 +19,7 @@ const SRC = {
   fullDark: '/logo-full-on-dark.png',
   /** Ícone G oficial (sem fundo) — marca pessoal compacta */
   markLight: '/logo-g-mark.png',
-  /** SVG limpo — sem halo/rebarba no escuro e no loading */
-  markDark: '/logo-g-mark-on-dark.svg',
+  markDark: '/logo-g-mark.png',
 } as const
 
 /**

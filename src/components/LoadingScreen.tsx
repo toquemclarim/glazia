@@ -1,7 +1,6 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import { useApp } from '../context/AppContext'
 import { getAccessToken } from '../services/api'
-import { BrandLogo } from './BrandLogo'
 
 export function LoadingScreen() {
   const { loading, bootstrapping } = useApp()
@@ -18,7 +17,16 @@ export function LoadingScreen() {
           exit={{ opacity: 0 }}
           transition={{ duration: 0.2 }}
         >
-          <BrandLogo variant="mark" size="mark" className="loading-logo" />
+          {/* Só o G — asset fixo, sem wordmark */}
+          <img
+            src="/logo-g-mark.png"
+            alt=""
+            className="brand-logo brand-logo-mark loading-logo"
+            width={72}
+            height={72}
+            draggable={false}
+            decoding="async"
+          />
           <div className="loading-bar">
             <span />
           </div>

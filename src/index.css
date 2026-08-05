@@ -753,8 +753,10 @@ table.data tr:hover td {
 .loading-logo.brand-logo {
   width: 72px;
   height: 72px;
+  max-width: 72px;
   margin-bottom: 1.5rem;
   object-fit: contain;
+  object-position: center;
   /* scale/opacity — evita drop-shadow que realça bordas do raster */
   animation: loadingLogoPulse 1.4s ease-in-out infinite;
 }
