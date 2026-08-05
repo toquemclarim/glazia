@@ -19,8 +19,8 @@ export function LoadingScreen() {
           transition={{ duration: 0.2 }}
         >
           <BrandLogo
-            variant="full"
-            size="auth"
+            variant="mark"
+            size="mark"
             className="loading-logo"
           />
           <div className="loading-bar">

@@ -751,7 +751,10 @@ table.data tr:hover td {
 }
 
 .loading-logo.brand-logo {
+  width: 72px;
+  height: 72px;
   margin-bottom: 1.5rem;
+  object-fit: contain;
   animation: pulseAccent 1.4s ease-in-out infinite;
 }
 
