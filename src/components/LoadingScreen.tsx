@@ -18,11 +18,7 @@ export function LoadingScreen() {
           exit={{ opacity: 0 }}
           transition={{ duration: 0.2 }}
         >
-          <BrandLogo
-            variant="mark"
-            size="mark"
-            className="loading-logo"
-          />
+          <BrandLogo variant="mark" size="mark" className="loading-logo" />
           <div className="loading-bar">
             <span />
           </div>

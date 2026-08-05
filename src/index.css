@@ -755,7 +755,20 @@ table.data tr:hover td {
   height: 72px;
   margin-bottom: 1.5rem;
   object-fit: contain;
-  animation: pulseAccent 1.4s ease-in-out infinite;
+  /* scale/opacity — evita drop-shadow que realça bordas do raster */
+  animation: loadingLogoPulse 1.4s ease-in-out infinite;
+}
+
+@keyframes loadingLogoPulse {
+  0%,
+  100% {
+    opacity: 0.92;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.04);
+  }
 }
 
 .loading-bar {
