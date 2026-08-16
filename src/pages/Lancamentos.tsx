@@ -34,6 +34,7 @@ import type {
 } from '../types'
 import { ClienteFormModal } from '../components/ClienteFormModal'
 import { ItemPreview } from '../components/ItemPreview'
+import { SearchableSelect } from '../components/SearchableSelect'
 import { onTourAction } from '../tour/events'
 
 type Modo = null | 'venda' | 'custo' | 'gerenciar'
@@ -651,19 +652,17 @@ function FormVenda({
               <div className="field full">
                 <label htmlFor="venda-cliente">Quem comprou?</label>
                 <div className="cliente-select-row">
-                  <select
+                  <SearchableSelect
                     id="venda-cliente"
                     value={idCliente}
-                    onChange={(e) => setIdCliente(e.target.value)}
                     required
-                  >
-                    <option value="">Selecione o cliente…</option>
-                    {clientes.map((c) => (
-                      <option key={c.id} value={c.matricula}>
-                        {c.matricula} · {c.nome} ({c.tipoPessoa})
-                      </option>
-                    ))}
-                  </select>
+                    placeholder="Busque o cliente…"
+                    options={clientes.map((c) => ({
+                      value: c.matricula,
+                      label: `${c.matricula} · ${c.nome} (${c.tipoPessoa})`,
+                    }))}
+                    onChange={setIdCliente}
+                  />
                   <button
                     type="button"
                     className="btn btn-ghost"
@@ -687,21 +686,14 @@ function FormVenda({
               <div className="lanc-fields-row">
                 <div className="field">
                   <label htmlFor={`linha-${item.key}`}>1. Linha</label>
-                  <select
+                  <SearchableSelect
                     id={`linha-${item.key}`}
                     value={item.linha}
-                    onChange={(e) =>
-                      updateItem(item.key, { linha: e.target.value })
-                    }
                     required
-                  >
-                    <option value="">Selecione a linha…</option>
-                    {linhasOpts.map((l) => (
-                      <option key={l} value={l}>
-                        {l}
-                      </option>
-                    ))}
-                  </select>
+                    placeholder="Busque a linha…"
+                    options={linhasOpts.map((l) => ({ value: l, label: l }))}
+                    onChange={(linha) => updateItem(item.key, { linha })}
+                  />
                   {carregandoLinha === item.linha && (
                     <span className="lanc-muted" style={{ fontSize: '0.75rem' }}>
                       Carregando produtos…
@@ -711,50 +703,42 @@ function FormVenda({
 
                 <div className="field">
                   <label htmlFor={`prod-${item.key}`}>2. Produto</label>
-                  <select
+                  <SearchableSelect
                     id={`prod-${item.key}`}
                     value={item.produto}
-                    disabled={!item.linha || !skusPorLinha[item.linha]}
-                    onChange={(e) =>
-                      updateItem(item.key, { produto: e.target.value })
-                    }
                     required
-                  >
-                    <option value="">
-                      {!item.linha
+                    disabled={!item.linha || !skusPorLinha[item.linha]}
+                    placeholder={
+                      !item.linha
                         ? 'Escolha a linha'
                         : !skusPorLinha[item.linha]
                           ? 'Carregando…'
-                          : 'Selecione o produto…'}
-                    </option>
-                    {produtosPara(item.linha).map((p) => (
-                      <option key={p} value={p}>
-                        {p}
-                      </option>
-                    ))}
-                  </select>
+                          : 'Busque o produto…'
+                    }
+                    options={produtosPara(item.linha).map((p) => ({
+                      value: p,
+                      label: p,
+                    }))}
+                    onChange={(produto) => updateItem(item.key, { produto })}
+                  />
                 </div>
 
                 <div className="field">
                   <label htmlFor={`cor-${item.key}`}>3. Cor</label>
-                  <select
+                  <SearchableSelect
                     id={`cor-${item.key}`}
                     value={item.cor}
-                    disabled={!item.produto}
-                    onChange={(e) =>
-                      updateItem(item.key, { cor: e.target.value })
-                    }
                     required
-                  >
-                    <option value="">
-                      {item.produto ? 'Selecione a cor…' : 'Escolha o produto'}
-                    </option>
-                    {coresPara(item.linha, item.produto).map((c) => (
-                      <option key={c} value={c}>
-                        {c}
-                      </option>
-                    ))}
-                  </select>
+                    disabled={!item.produto}
+                    placeholder={
+                      item.produto ? 'Busque a cor…' : 'Escolha o produto'
+                    }
+                    options={coresPara(item.linha, item.produto).map((c) => ({
+                      value: c,
+                      label: c,
+                    }))}
+                    onChange={(cor) => updateItem(item.key, { cor })}
+                  />
                 </div>
               </div>
 
@@ -860,55 +844,45 @@ function FormVenda({
                 <div key={g.key} className="lanc-fields-row compact">
                   <div className="field">
                     <label>Item da venda</label>
-                    <select
+                    <SearchableSelect
                       value={g.itemKey}
-                      onChange={(e) => {
-                        const nextItem = itens.find((i) => i.key === e.target.value)
+                      options={itens.map((i, idx) => ({
+                        value: i.key,
+                        label: `Item ${idx + 1}${i.linha ? ` · ${i.linha}` : ''}${i.produto ? ` · ${i.produto}` : ''}`,
+                      }))}
+                      onChange={(itemKey) => {
+                        const nextItem = itens.find((i) => i.key === itemKey)
                         if (nextItem?.linha) void garantirCustosLinha(nextItem.linha)
                         setGastos((prev) =>
                           prev.map((x) =>
-                            x.key === g.key
-                              ? { ...x, itemKey: e.target.value, idCusto: '' }
-                              : x,
+                            x.key === g.key ? { ...x, itemKey, idCusto: '' } : x,
                           ),
                         )
                       }}
-                    >
-                      {itens.map((i, idx) => (
-                        <option key={i.key} value={i.key}>
-                          Item {idx + 1}
-                          {i.linha ? ` · ${i.linha}` : ''}
-                          {i.produto ? ` · ${i.produto}` : ''}
-                        </option>
-                      ))}
-                    </select>
+                    />
                   </div>
                   <div className="field grow">
                     <label>Custo</label>
-                    <select
+                    <SearchableSelect
                       value={g.idCusto}
-                      onChange={(e) =>
+                      required={incluirGastos}
+                      placeholder={
+                        itemRef?.linha && !custosPorLinha[itemRef.linha]
+                          ? 'Carregando custos…'
+                          : 'Busque o custo…'
+                      }
+                      options={custosDoItem.map((c) => ({
+                        value: String(c.idCusto),
+                        label: c.rotulo,
+                      }))}
+                      onChange={(idCusto) =>
                         setGastos((prev) =>
                           prev.map((x) =>
-                            x.key === g.key
-                              ? { ...x, idCusto: e.target.value }
-                              : x,
+                            x.key === g.key ? { ...x, idCusto } : x,
                           ),
                         )
                       }
-                      required={incluirGastos}
-                    >
-                      <option value="">
-                        {itemRef?.linha && !custosPorLinha[itemRef.linha]
-                          ? 'Carregando custos…'
-                          : 'Selecione…'}
-                      </option>
-                      {custosDoItem.map((c) => (
-                        <option key={c.idCusto} value={c.idCusto}>
-                          {c.rotulo}
-                        </option>
-                      ))}
-                    </select>
+                    />
                   </div>
                   <div className="field">
                     <label>Valor (R$)</label>
@@ -1239,12 +1213,22 @@ function FormCusto({
   const [associar, setAssociar] = useState(false)
   const [idVenda, setIdVenda] = useState('')
   const [buscaVenda, setBuscaVenda] = useState('')
+  const [itemLivre, setItemLivre] = useState('')
   const [salvando, setSalvando] = useState(false)
   const [loading, setLoading] = useState(true)
 
+  const isOutros = tipo.toUpperCase() === 'OUTROS'
+
   useEffect(() => {
     listarTiposCustoCatalogo()
-      .then((res) => setTipos(res.itens.map((i) => i.tipoCusto)))
+      .then((res) => {
+        const all = res.itens.map((i) => i.tipoCusto)
+        const outros = all.filter((t) => t.toUpperCase() === 'OUTROS')
+        const rest = all
+          .filter((t) => t.toUpperCase() !== 'OUTROS')
+          .sort((a, b) => a.localeCompare(b, 'pt-BR'))
+        setTipos([...rest, ...outros])
+      })
       .catch((e) =>
         setErro(e instanceof Error ? e.message : 'Erro ao carregar tipos'),
       )
@@ -1259,10 +1243,12 @@ function FormCusto({
       setLinhasCustoOpts([])
       setLinhaCusto('')
       setIdCusto('')
+      setItemLivre('')
       return
     }
     setLinhaCusto('')
     setIdCusto('')
+    setItemLivre('')
     setCustos([])
     listarLinhasCustoCatalogo(tipo)
       .then((res) => {
@@ -1279,6 +1265,14 @@ function FormCusto({
         setErro(e instanceof Error ? e.message : 'Erro ao carregar linhas'),
       )
   }, [tipo, setErro])
+
+  useEffect(() => {
+    if (!isOutros || linhasCustoOpts.length === 0) return
+    const geral =
+      linhasCustoOpts.find((l) => l.toUpperCase() === 'GERAL') ??
+      linhasCustoOpts[0]
+    if (linhaCusto !== geral) setLinhaCusto(geral)
+  }, [isOutros, linhasCustoOpts, linhaCusto])
 
   useEffect(() => {
     if (!tipo || !linhaCusto) {
@@ -1311,19 +1305,29 @@ function FormCusto({
   }, [associar, buscaVenda, setErro])
 
   const escolhido = custos.find((c) => String(c.idCusto) === idCusto)
+  const itemCatalogo = isOutros ? custos[0] : escolhido
   const previewList = [
     {
       key: 'custo-preview',
-      kind: escolhido?.tipoCusto || escolhido?.descricao || tipo || 'VIDRO',
-      label: escolhido?.rotulo || tipo || 'Selecione um custo',
+      kind: [tipo, isOutros ? itemLivre : itemCatalogo?.descricao]
+        .filter(Boolean)
+        .join(' ') || 'VIDRO',
+      label: isOutros
+        ? itemLivre.trim() || 'Descreva o custo'
+        : itemCatalogo?.rotulo || tipo || 'Selecione um custo',
     },
   ]
 
   const salvar = async (e: FormEvent) => {
     e.preventDefault()
     setErro(null)
-    if (!escolhido) {
-      setErro('Selecione o item de custo')
+    if (!itemCatalogo) {
+      setErro(isOutros ? 'Selecione o tipo Outros' : 'Selecione o item de custo')
+      return
+    }
+    const descricao = isOutros ? itemLivre.trim() : itemCatalogo.descricao
+    if (isOutros && !descricao) {
+      setErro('Descreva o item de custo')
       return
     }
     const v = Number(valor.replace(',', '.'))
@@ -1339,11 +1343,11 @@ function FormCusto({
     setSalvando(true)
     try {
       const res = await criarCustoLancamento({
-        idCustoCatalogo: escolhido.idCusto,
-        descricao: escolhido.descricao,
-        tipoCusto: escolhido.tipoCusto,
-        espessura: escolhido.espessura,
-        linha: escolhido.linha,
+        idCustoCatalogo: itemCatalogo.idCusto,
+        descricao,
+        tipoCusto: itemCatalogo.tipoCusto || tipo,
+        espessura: itemCatalogo.espessura,
+        linha: isOutros ? 'GERAL' : itemCatalogo.linha,
         valor: v,
         associadoAVenda: associar,
         idVenda: associar ? idVenda : undefined,
@@ -1372,72 +1376,68 @@ function FormCusto({
           <div className="lanc-fields-row">
             <div className="field">
               <label htmlFor="tipo-custo">1. Tipo de custo</label>
-              <select
+              <SearchableSelect
                 id="tipo-custo"
                 value={tipo}
-                onChange={(e) => setTipo(e.target.value)}
                 required
-              >
-                <option value="">Selecione o tipo…</option>
-                {tipos.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
-                  </option>
-                ))}
-              </select>
+                placeholder="Busque o tipo…"
+                options={tipos.map((t) => ({ value: t, label: t }))}
+                onChange={setTipo}
+              />
             </div>
 
-            {linhasCustoOpts.length > 0 && (
+            {linhasCustoOpts.length > 0 && !isOutros && (
               <div className="field">
                 <label htmlFor="linha-custo">2. Linha</label>
-                <select
+                <SearchableSelect
                   id="linha-custo"
                   value={linhaCusto}
+                  required
                   disabled={!tipo}
-                  onChange={(e) => {
-                    setLinhaCusto(e.target.value)
+                  placeholder={tipo ? 'Busque a linha…' : 'Escolha o tipo'}
+                  options={linhasCustoOpts.map((l) => ({ value: l, label: l }))}
+                  onChange={(linha) => {
+                    setLinhaCusto(linha)
                     setIdCusto('')
                   }}
-                  required
-                >
-                  <option value="">
-                    {tipo ? 'Selecione a linha…' : 'Escolha o tipo'}
-                  </option>
-                  {linhasCustoOpts.map((l) => (
-                    <option key={l} value={l}>
-                      {l}
-                    </option>
-                  ))}
-                </select>
+                />
               </div>
             )}
 
             <div className="field grow">
               <label htmlFor="item-custo">
-                {linhasCustoOpts.length > 0 ? '3. Item' : '2. Item'}
+                {isOutros || linhasCustoOpts.length === 0 ? '2. Item' : '3. Item'}
               </label>
-              <select
-                id="item-custo"
-                value={idCusto}
-                disabled={
-                  !tipo || (linhasCustoOpts.length > 0 && !linhaCusto)
-                }
-                onChange={(e) => setIdCusto(e.target.value)}
-                required
-              >
-                <option value="">
-                  {!tipo
-                    ? 'Escolha o tipo'
-                    : linhasCustoOpts.length > 0 && !linhaCusto
-                      ? 'Escolha a linha'
-                      : 'Selecione o item…'}
-                </option>
-                {itensCustoOpts.map((c) => (
-                  <option key={c.idCusto} value={c.idCusto}>
-                    {c.rotulo}
-                  </option>
-                ))}
-              </select>
+              {isOutros ? (
+                <input
+                  id="item-custo"
+                  value={itemLivre}
+                  onChange={(e) => setItemLivre(e.target.value)}
+                  placeholder="Digite o item (ex.: café da manhã na obra)"
+                  required
+                />
+              ) : (
+                <SearchableSelect
+                  id="item-custo"
+                  value={idCusto}
+                  required
+                  disabled={
+                    !tipo || (linhasCustoOpts.length > 0 && !linhaCusto)
+                  }
+                  placeholder={
+                    !tipo
+                      ? 'Escolha o tipo'
+                      : linhasCustoOpts.length > 0 && !linhaCusto
+                        ? 'Escolha a linha'
+                        : 'Busque o item…'
+                  }
+                  options={itensCustoOpts.map((c) => ({
+                    value: String(c.idCusto),
+                    label: c.rotulo,
+                  }))}
+                  onChange={setIdCusto}
+                />
+              )}
             </div>
           </div>
 
@@ -1481,27 +1481,26 @@ function FormCusto({
               </div>
               <div className="field">
                 <label htmlFor="venda-sel">Selecionar venda</label>
-                <select
+                <SearchableSelect
                   id="venda-sel"
                   value={idVenda}
-                  onChange={(e) => setIdVenda(e.target.value)}
                   required={associar}
-                >
-                  <option value="">Selecione…</option>
-                  {vendas.map((v) => (
-                    <option key={v.idVenda} value={v.idVenda}>
-                      {v.rotulo ||
-                        [
-                          v.dataVenda.split('-').reverse().join('/'),
-                          money(v.valorTotal),
-                          v.cliente,
-                          v.resumo,
-                        ]
-                          .filter(Boolean)
-                          .join(' · ')}
-                    </option>
-                  ))}
-                </select>
+                  placeholder="Busque a venda…"
+                  options={vendas.map((v) => ({
+                    value: v.idVenda,
+                    label:
+                      v.rotulo ||
+                      [
+                        v.dataVenda.split('-').reverse().join('/'),
+                        money(v.valorTotal),
+                        v.cliente,
+                        v.resumo,
+                      ]
+                        .filter(Boolean)
+                        .join(' · '),
+                  }))}
+                  onChange={setIdVenda}
+                />
               </div>
             </fieldset>
           ) : (

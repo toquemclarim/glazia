@@ -9,7 +9,40 @@ function soft(tone: Tone) {
 }
 
 function detectKind(kind: string) {
-  const k = kind.toUpperCase()
+  const k = kind
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toUpperCase()
+  if (k.includes('PEDREIRO')) return 'PEDREIRO'
+  if (k.includes('PEDAGIO')) return 'PEDAGIO'
+  if (k.includes('EMBARC')) return 'EMBARCACAO'
+  if (k.includes('ALUGUEL DE VEIC') || k.includes('ESTACION')) return 'VEICULO'
+  if (k.includes('HOSPED')) return 'HOSPEDAGEM'
+  if (
+    k.includes('COMBUST') ||
+    k.includes('GASOLINA') ||
+    k.includes('DIESEL') ||
+    k.includes('ETANOL') ||
+    k.includes('ALCOOL') ||
+    /(^| )GAS($| )/.test(k)
+  ) {
+    return 'COMBUSTIVEL'
+  }
+  if (
+    k.includes('ALIMENT') ||
+    k.includes('ALMOCO') ||
+    k.includes('LANCHE') ||
+    k.includes('JANTAR')
+  ) {
+    return 'ALIMENTACAO'
+  }
+  if (k.includes('PNEU') || k.includes('OLEO') || k.includes('LAVAGEM') || k.includes('MANUTENCAO VEIC')) {
+    return 'MANUTENCAO'
+  }
+  if (k.includes('UBER') || k.includes('TAXI') || k.includes('MOTOFRETE') || k.includes('TRANSPORTE')) {
+    return 'TRANSPORTE'
+  }
+  if (k.includes('OUTROS')) return 'OUTROS'
   if (k.includes('PARAFUS') || k.includes('FERRAG') || k.includes('ROLDANA') || k.includes('DOBRADI') || k.includes('PUXADOR') || k.includes('FECHO') || k.includes('PIVO')) {
     return 'PARAFUSO'
   }
@@ -25,7 +58,8 @@ function detectKind(kind: string) {
   if (k.includes('PORTA')) return 'PORTA'
   if (k.includes('MAXIMAR') || k.includes('TOMBANTE') || k.includes('BASCUL')) return 'MAXIMAR'
   if (k.includes('JANELA') || k.includes('VENEZIANA')) return 'JANELA'
-  if (k.includes('SERVICO') || k.includes('CONSUM')) return 'SERVICO'
+  if (k.includes('SERVICO') || k.includes('CONSUM') || k.includes('TERCEIRIZ')) return 'SERVICO'
+  if (k.includes('TAXAS DE VIAGEM')) return 'VEICULO'
   return 'JANELA'
 }
 
@@ -91,6 +125,16 @@ export function ItemPreview({
             <SvgSilicone stroke={stroke} fill={fill} shineId={`glassShine-${index}`} />
           )}
           {variant === 'SERVICO' && <SvgServico stroke={stroke} fill={fill} />}
+          {variant === 'PEDREIRO' && <SvgPedreiro stroke={stroke} fill={fill} />}
+          {variant === 'PEDAGIO' && <SvgPedagio stroke={stroke} fill={fill} />}
+          {variant === 'EMBARCACAO' && <SvgEmbarcacao stroke={stroke} fill={fill} shineId={`glassShine-${index}`} />}
+          {variant === 'VEICULO' && <SvgVeiculo stroke={stroke} fill={fill} />}
+          {variant === 'HOSPEDAGEM' && <SvgHospedagem stroke={stroke} fill={fill} />}
+          {variant === 'COMBUSTIVEL' && <SvgCombustivel stroke={stroke} fill={fill} />}
+          {variant === 'ALIMENTACAO' && <SvgAlimentacao stroke={stroke} fill={fill} />}
+          {variant === 'MANUTENCAO' && <SvgManutencao stroke={stroke} fill={fill} />}
+          {variant === 'TRANSPORTE' && <SvgTransporte stroke={stroke} fill={fill} />}
+          {variant === 'OUTROS' && <SvgOutros stroke={stroke} fill={fill} />}
         </svg>
       </div>
       <p className="lanc-preview-label">{label || '—'}</p>
@@ -229,6 +273,120 @@ function SvgServico({ stroke, fill }: { stroke: string; fill: string }) {
         strokeLinecap="round"
         strokeLinejoin="round"
       />
+    </g>
+  )
+}
+
+function SvgPedreiro({ stroke, fill }: { stroke: string; fill: string }) {
+  return (
+    <g>
+      <ellipse cx="110" cy="48" rx="28" ry="10" fill={stroke} className="preview-bob" />
+      <path d="M82 48 Q110 78 138 48" fill={fill} stroke={stroke} strokeWidth="3" className="preview-bob" />
+      <circle cx="110" cy="92" r="16" fill={fill} stroke={stroke} strokeWidth="2.5" />
+      <path d="M86 150 Q110 118 134 150" fill="none" stroke={stroke} strokeWidth="3" />
+      <rect x="72" y="118" width="18" height="36" rx="3" fill={stroke} className="preview-swing" />
+    </g>
+  )
+}
+
+function SvgPedagio({ stroke, fill }: { stroke: string; fill: string }) {
+  return (
+    <g>
+      <rect x="36" y="118" width="148" height="14" rx="3" fill={stroke} opacity="0.35" />
+      <rect x="48" y="42" width="16" height="90" rx="3" fill={stroke} />
+      <rect x="156" y="42" width="16" height="90" rx="3" fill={stroke} />
+      <rect x="48" y="36" width="124" height="12" rx="3" fill={fill} stroke={stroke} strokeWidth="2" />
+      <g className="preview-toll">
+        <rect x="64" y="62" width="88" height="8" rx="3" fill={stroke} />
+      </g>
+    </g>
+  )
+}
+
+function SvgEmbarcacao({ stroke, fill, shineId }: SvgProps) {
+  return (
+    <g>
+      <path d="M40 118 L70 78 H150 L180 118 Z" fill={fill} stroke={stroke} strokeWidth="3" />
+      <path d="M78 78 V46 H128" fill="none" stroke={stroke} strokeWidth="3" />
+      <path d="M80 48 L126 48 L126 74 H80 Z" fill={`url(#${shineId})`} stroke={stroke} strokeWidth="1.5" className="preview-sail" />
+      <path d="M30 132 Q110 148 190 132" fill="none" stroke={stroke} strokeWidth="3" className="preview-wave" />
+    </g>
+  )
+}
+
+function SvgVeiculo({ stroke, fill }: { stroke: string; fill: string }) {
+  return (
+    <g className="preview-drive">
+      <path d="M48 108 H172 L158 80 H92 L78 108 Z" fill={fill} stroke={stroke} strokeWidth="3" />
+      <path d="M96 80 L108 58 H146 L158 80" fill={fill} stroke={stroke} strokeWidth="2.5" />
+      <circle cx="78" cy="118" r="12" fill={stroke} />
+      <circle cx="148" cy="118" r="12" fill={stroke} />
+      <circle cx="78" cy="118" r="5" fill={fill} />
+      <circle cx="148" cy="118" r="5" fill={fill} />
+    </g>
+  )
+}
+
+function SvgHospedagem({ stroke, fill }: { stroke: string; fill: string }) {
+  return (
+    <g>
+      <rect x="48" y="48" width="124" height="90" rx="6" fill={fill} stroke={stroke} strokeWidth="3" />
+      <path d="M40 48 L110 22 L180 48" fill={fill} stroke={stroke} strokeWidth="3" />
+      <rect x="70" y="70" width="22" height="22" rx="2" fill={stroke} opacity="0.35" className="preview-window" />
+      <rect x="128" y="70" width="22" height="22" rx="2" fill={stroke} opacity="0.35" className="preview-window" />
+      <rect x="96" y="98" width="28" height="40" rx="2" fill={stroke} />
+    </g>
+  )
+}
+
+function SvgCombustivel({ stroke, fill }: { stroke: string; fill: string }) {
+  return (
+    <g>
+      <rect x="58" y="40" width="70" height="100" rx="8" fill={fill} stroke={stroke} strokeWidth="3" />
+      <rect x="70" y="54" width="46" height="36" rx="4" fill={stroke} opacity="0.25" />
+      <path d="M128 58 H150 Q164 58 164 74 V118" fill="none" stroke={stroke} strokeWidth="4" strokeLinecap="round" className="preview-hose" />
+      <circle cx="164" cy="128" r="8" fill={stroke} className="preview-drip" />
+    </g>
+  )
+}
+
+function SvgAlimentacao({ stroke, fill }: { stroke: string; fill: string }) {
+  return (
+    <g>
+      <ellipse cx="110" cy="108" rx="58" ry="18" fill={fill} stroke={stroke} strokeWidth="3" />
+      <ellipse cx="110" cy="98" rx="42" ry="28" fill={fill} stroke={stroke} strokeWidth="2.5" className="preview-steam" />
+      <path d="M168 58 L188 130" stroke={stroke} strokeWidth="4" strokeLinecap="round" />
+      <path d="M176 70 Q198 86 178 108" fill="none" stroke={stroke} strokeWidth="3" />
+    </g>
+  )
+}
+
+function SvgManutencao({ stroke, fill }: { stroke: string; fill: string }) {
+  return (
+    <g>
+      <circle cx="110" cy="92" r="42" fill={fill} stroke={stroke} strokeWidth="8" className="preview-spin-slow" />
+      <circle cx="110" cy="92" r="14" fill={stroke} />
+      <path d="M110 50 V70 M110 114 V134 M68 92 H88 M132 92 H152" stroke={stroke} strokeWidth="6" strokeLinecap="round" />
+    </g>
+  )
+}
+
+function SvgTransporte({ stroke, fill }: { stroke: string; fill: string }) {
+  return (
+    <g className="preview-drive">
+      <rect x="52" y="70" width="116" height="42" rx="12" fill={fill} stroke={stroke} strokeWidth="3" />
+      <circle cx="80" cy="122" r="10" fill={stroke} />
+      <circle cx="140" cy="122" r="10" fill={stroke} />
+      <path d="M70 70 Q110 40 150 70" fill="none" stroke={stroke} strokeWidth="3" />
+    </g>
+  )
+}
+
+function SvgOutros({ stroke, fill }: { stroke: string; fill: string }) {
+  return (
+    <g>
+      <rect x="58" y="42" width="104" height="96" rx="10" fill={fill} stroke={stroke} strokeWidth="3" className="preview-bob" />
+      <path d="M86 88 h48 M110 64 v48" stroke={stroke} strokeWidth="5" strokeLinecap="round" />
     </g>
   )
 }
