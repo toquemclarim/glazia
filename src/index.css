@@ -297,6 +297,31 @@ img {
   opacity: 0.85;
 }
 
+.nav-item-label {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  line-height: 1.25;
+}
+
+.nav-new {
+  flex-shrink: 0;
+  padding: 0.14rem 0.42rem;
+  border-radius: 999px;
+  font-size: 0.58rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border: 1px solid color-mix(in srgb, var(--accent) 42%, transparent);
+}
+
+.nav-item.active .nav-new {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
 .sidebar-footer {
   padding-top: 1rem;
   border-top: 1px solid var(--border);
@@ -2025,6 +2050,10 @@ table.data tr:hover td {
 .home-card-text strong {
   font-size: 1.02rem;
   font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex-wrap: wrap;
 }
 
 .home-card-text span {

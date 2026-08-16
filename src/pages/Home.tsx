@@ -187,6 +187,7 @@ export function Home() {
         descricao: 'Pesquise ou escolha o dia e leia a margem de cada item.',
         icon: ScanSearch,
         liberado: podeAnalisar || podeOperar,
+        novidade: true,
       },
       {
         path: '/despesas',
@@ -439,7 +440,8 @@ export function Home() {
           </button>
         )}
 
-        {atalhos.map(({ path, titulo, descricao, icon: Icon, liberado }, i) => (
+        {atalhos.map(
+          ({ path, titulo, descricao, icon: Icon, liberado, novidade }, i) => (
           <button
             key={path}
             type="button"
@@ -454,7 +456,10 @@ export function Home() {
               <Icon size={22} />
             </span>
             <span className="home-card-text">
-              <strong>{titulo}</strong>
+              <strong>
+                {titulo}
+                {novidade && <span className="nav-new">Novidade</span>}
+              </strong>
               <span>
                 {liberado
                   ? descricao

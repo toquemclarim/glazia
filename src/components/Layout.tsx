@@ -12,6 +12,7 @@ import {
   UserCog,
   Users,
   X,
+  type LucideIcon,
 } from 'lucide-react'
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
@@ -60,7 +61,12 @@ export function Layout({ children }: { children: ReactNode }) {
   const [menuOpen, setMenuOpen] = useState(false)
 
   const nav = useMemo(() => {
-    const items = [{ path: '/home', label: 'Início', icon: House }]
+    const items: Array<{
+      path: string
+      label: string
+      icon: LucideIcon
+      badge?: string
+    }> = [{ path: '/home', label: 'Início', icon: House }]
     if (podeAnalisar) {
       items.push({ path: '/analise', label: 'Análise', icon: BarChart3 })
     }
@@ -69,6 +75,7 @@ export function Layout({ children }: { children: ReactNode }) {
         path: '/analise-vendas',
         label: 'Análise de vendas',
         icon: ScanSearch,
+        badge: 'Novidade',
       })
     }
     if (podeOperar) {
@@ -138,7 +145,7 @@ export function Layout({ children }: { children: ReactNode }) {
         </div>
 
         <nav className="nav-list">
-          {nav.map(({ path, label, icon: Icon }) => (
+          {nav.map(({ path, label, icon: Icon, badge }) => (
             <button
               key={path}
               data-tour={NAV_TOUR[path]}
@@ -146,7 +153,8 @@ export function Layout({ children }: { children: ReactNode }) {
               onClick={() => go(path)}
             >
               <Icon size={18} />
-              {label}
+              <span className="nav-item-label">{label}</span>
+              {badge && <span className="nav-new">{badge}</span>}
             </button>
           ))}
         </nav>
