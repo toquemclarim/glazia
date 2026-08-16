@@ -12,6 +12,7 @@ import type { AuthContext } from '../auth/auth-context';
 import { CurrentAuth } from '../auth/current-auth.decorator';
 import {
   AtualizarVendaDto,
+  CalendarioVendasQueryDto,
   CriarCustoDto,
   CriarVendaDto,
   ListarVendasQueryDto,
@@ -22,13 +23,21 @@ import { LancamentosService } from './lancamentos.service';
 export class LancamentosController {
   constructor(private readonly lancamentosService: LancamentosService) {}
 
-  /** Lista vendas recentes para associar custos (com busca). */
+  /** Lista vendas recentes para associar custos (com busca e data). */
   @Get('vendas')
   listarVendas(
     @CurrentAuth() auth: AuthContext,
     @Query() query: ListarVendasQueryDto,
   ) {
     return this.lancamentosService.listarVendas(auth, query);
+  }
+
+  @Get('vendas/calendario')
+  calendarioVendas(
+    @CurrentAuth() auth: AuthContext,
+    @Query() query: CalendarioVendasQueryDto,
+  ) {
+    return this.lancamentosService.calendarioVendas(auth, query);
   }
 
   @Get('vendas/:id')

@@ -319,6 +319,62 @@ export interface VendaResumo {
   rotulo: string
 }
 
+export interface VendaGastoDetalhe {
+  idCustoCatalogo: number
+  descricao: string
+  tipoCusto: string | null
+  linha: string | null
+  valor: number
+}
+
+export interface VendaItemDetalhe {
+  idVendaItem: string
+  idProdutoCatalogo: number
+  linha: string
+  produto: string
+  cor: string
+  unidadeVenda: string
+  quantidade: number
+  valorUnitario: number
+  faturamento?: number
+  gastosTotal?: number
+  lucro?: number
+  margemPercentual?: number
+  temGastosLancados?: boolean
+  gastos: VendaGastoDetalhe[]
+}
+
+export interface VendaDetalhe {
+  idVenda: string
+  idCliente: string | null
+  cliente: string | null
+  dataVenda: string
+  dataPrevisaoRecebimento: string
+  dataPagamento?: string | null
+  mesRecebimento?: string | null
+  observacao: string | null
+  valorTotal: number
+  status: string
+  jaRecebido: boolean
+  totais?: {
+    faturamento: number
+    gastos: number
+    lucro: number
+    margemPercentual: number
+    temGastosLancados: boolean
+  }
+  itens: VendaItemDetalhe[]
+}
+
+export interface CalendarioVendas {
+  mes: string
+  dias: Array<{
+    data: string
+    quantidade: number
+    faturamento: number
+  }>
+}
+
 export interface GastoLancamentoPayload {
   idCustoCatalogo: number
   descricao: string

@@ -27,7 +27,9 @@ import type {
   StatusAssinatura,
   Usuario,
   UsuarioEquipe,
+  VendaDetalhe,
   VendaResumo,
+  CalendarioVendas,
 } from '../types'
 
 const API_URL =
@@ -405,9 +407,21 @@ export async function listarCustosCatalogo(params: {
 
 /* —— Lançamentos → grava no dataset analytics —— */
 
-export async function listarVendasLancamento(q?: string) {
-  const suffix = q?.trim() ? `?q=${encodeURIComponent(q.trim())}` : ''
+export async function listarVendasLancamento(
+  q?: string,
+  opts?: { data?: string },
+) {
+  const qs = new URLSearchParams()
+  if (q?.trim()) qs.set('q', q.trim())
+  if (opts?.data) qs.set('data', opts.data)
+  const suffix = qs.toString() ? `?${qs}` : ''
   return apiRequest<{ itens: VendaResumo[] }>(`/lancamentos/vendas${suffix}`)
+}
+
+export async function calendarioVendasLancamento(mes: string) {
+  return apiRequest<CalendarioVendas>(
+    `/lancamentos/vendas/calendario?mes=${encodeURIComponent(mes)}`,
+  )
 }
 
 export async function criarVendaLancamento(payload: CriarVendaPayload) {
@@ -426,34 +440,9 @@ export async function criarVendaLancamento(payload: CriarVendaPayload) {
 }
 
 export async function obterVendaLancamento(idVenda: string) {
-  return apiRequest<{
-    idVenda: string
-    idCliente: string | null
-    cliente: string | null
-    dataVenda: string
-    dataPrevisaoRecebimento: string
-    observacao: string | null
-    valorTotal: number
-    status: string
-    jaRecebido: boolean
-    itens: Array<{
-      idVendaItem: string
-      idProdutoCatalogo: number
-      linha: string
-      produto: string
-      cor: string
-      unidadeVenda: string
-      quantidade: number
-      valorUnitario: number
-      gastos: Array<{
-        idCustoCatalogo: number
-        descricao: string
-        tipoCusto: string | null
-        linha: string | null
-        valor: number
-      }>
-    }>
-  }>(`/lancamentos/vendas/${encodeURIComponent(idVenda)}`)
+  return apiRequest<VendaDetalhe>(
+    `/lancamentos/vendas/${encodeURIComponent(idVenda)}`,
+  )
 }
 
 export async function atualizarVendaLancamento(

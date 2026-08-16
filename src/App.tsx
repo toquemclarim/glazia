@@ -7,6 +7,7 @@ import { AppProvider, useApp } from './context/AppContext'
 import { ThemeProvider } from './context/ThemeContext'
 import { TourProvider } from './tour/TourContext'
 import { Analise } from './pages/Analise'
+import { AnaliseVendas } from './pages/AnaliseVendas'
 import { Clientes } from './pages/Clientes'
 import { Conta } from './pages/Conta'
 import { CriarConta } from './pages/CriarConta'
@@ -167,6 +168,14 @@ function AppRoutes() {
           element={
             <PrivateRoute allow={podeAnalisar}>
               <Analise />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/analise-vendas"
+          element={
+            <PrivateRoute allow={podeAnalisar || podeOperar}>
+              <AnaliseVendas />
             </PrivateRoute>
           }
         />

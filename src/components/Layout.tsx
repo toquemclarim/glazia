@@ -6,6 +6,7 @@ import {
   Moon,
   PlusCircle,
   Receipt,
+  ScanSearch,
   Settings,
   Sun,
   UserCog,
@@ -25,6 +26,7 @@ import { TrialBanner } from './TrialBanner'
 const TITLES: Record<string, string> = {
   '/home': 'Início',
   '/analise': 'Análise financeira',
+  '/analise-vendas': 'Análise de vendas',
   '/lancamentos': 'Lançamentos',
   '/despesas': 'Despesas fixas',
   '/clientes': 'Clientes',
@@ -35,6 +37,7 @@ const TITLES: Record<string, string> = {
 const NAV_TOUR: Record<string, string> = {
   '/home': 'nav-home',
   '/analise': 'nav-analise',
+  '/analise-vendas': 'nav-analise-vendas',
   '/lancamentos': 'nav-lancamentos',
   '/despesas': 'nav-despesas',
   '/clientes': 'nav-clientes',
@@ -60,6 +63,13 @@ export function Layout({ children }: { children: ReactNode }) {
     const items = [{ path: '/home', label: 'Início', icon: House }]
     if (podeAnalisar) {
       items.push({ path: '/analise', label: 'Análise', icon: BarChart3 })
+    }
+    if (podeAnalisar || podeOperar) {
+      items.push({
+        path: '/analise-vendas',
+        label: 'Análise de vendas',
+        icon: ScanSearch,
+      })
     }
     if (podeOperar) {
       items.push(

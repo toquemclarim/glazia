@@ -14,6 +14,20 @@ export function assertOperador(auth: AuthContext) {
   }
 }
 
+/** Consulta de vendas (lista, detalhe, calendário) — operação e sócios. */
+export function assertConsultaVendas(auth: AuthContext) {
+  if (
+    auth.cargo !== 'ADM' &&
+    auth.cargo !== 'DIRETOR' &&
+    auth.cargo !== 'VENDAS' &&
+    auth.cargo !== 'SOCIO'
+  ) {
+    throw new ForbiddenException(
+      'Apenas ADM, Vendas, Diretor ou Sócio podem consultar vendas',
+    );
+  }
+}
+
 /** Análise financeira e painel de sócios. */
 export function assertAnalista(auth: AuthContext) {
   if (auth.cargo !== 'DIRETOR' && auth.cargo !== 'SOCIO') {

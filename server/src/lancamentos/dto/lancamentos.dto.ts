@@ -149,6 +149,18 @@ export class ListarVendasQueryDto {
   @IsOptional()
   @IsString()
   q?: string;
+
+  /** Data de registro da venda (YYYY-MM-DD). */
+  @IsOptional()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/)
+  data?: string;
+}
+
+export class CalendarioVendasQueryDto {
+  /** Mês do calendário (YYYY-MM). Sem valor, usa o mês vigente. */
+  @IsOptional()
+  @Matches(/^\d{4}-\d{2}$/)
+  mes?: string;
 }
 
 /** Mesmo payload da criação — substitui itens/custos da venda. */

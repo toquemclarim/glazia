@@ -5,10 +5,11 @@ import {
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import type { AuthContext } from '../auth/auth-context';
-import { assertOperador } from '../auth/roles';
+import { assertConsultaVendas, assertOperador } from '../auth/roles';
 import { DatabaseService, type Queryable } from '../database/database.service';
 import type {
   AtualizarVendaDto,
+  CalendarioVendasQueryDto,
   CriarCustoDto,
   CriarVendaDto,
   GastoItemDto,
@@ -56,13 +57,14 @@ export class LancamentosService {
   }
 
   async listarVendas(auth: AuthContext, query: ListarVendasQueryDto) {
-    this.assertOperador(auth);
+    assertConsultaVendas(auth);
     const vendas = this.db.table('fato_venda');
     const itens = this.db.table('fato_venda_item');
     const produtos = this.db.table('dim_produto');
     const clientes = this.db.table('dim_cliente');
     const params: Record<string, unknown> = { empresaId: auth.empresaId };
     const search = query.q?.trim();
+    const data = query.data?.trim();
 
     let searchSql = '';
     if (search) {
@@ -86,6 +88,14 @@ export class LancamentosService {
         )
       `;
     }
+
+    let dataSql = '';
+    if (data) {
+      params.data = data;
+      dataSql = `AND (v.data_venda)::date = @data::date`;
+    }
+
+    const limite = data ? 500 : search ? 200 : 120;
 
     const rows = await this.db.query<{
       id_venda: string;
@@ -126,8 +136,9 @@ export class LancamentosService {
       WHERE v.id_empresa = @empresaId
         AND UPPER(COALESCE(v.status_venda, 'FECHADA')) <> 'CANCELADA'
         ${searchSql}
+        ${dataSql}
       ORDER BY v.data_venda DESC, v.criado_em DESC
-      LIMIT 80
+      LIMIT ${limite}
     `,
       params,
     );
@@ -156,6 +167,41 @@ export class LancamentosService {
           rotulo: partes.join(' · '),
         };
       }),
+    };
+  }
+
+  async calendarioVendas(auth: AuthContext, query: CalendarioVendasQueryDto) {
+    assertConsultaVendas(auth);
+    const mes =
+      query.mes?.trim() || new Date().toISOString().slice(0, 7);
+    const vendas = this.db.table('fato_venda');
+    const rows = await this.db.query<{
+      data_venda: string;
+      quantidade: number;
+      faturamento: number;
+    }>(
+      `
+      SELECT
+        (v.data_venda)::date::text AS data_venda,
+        COUNT(*)::int AS quantidade,
+        COALESCE(SUM(v.valor_total_informado), 0)::float AS faturamento
+      FROM ${vendas} v
+      WHERE v.id_empresa = @empresaId
+        AND UPPER(COALESCE(v.status_venda, 'FECHADA')) <> 'CANCELADA'
+        AND to_char(v.data_venda, 'YYYY-MM') = @mes
+      GROUP BY (v.data_venda)::date
+      ORDER BY 1
+    `,
+      { empresaId: auth.empresaId, mes },
+    );
+
+    return {
+      mes,
+      dias: rows.map((r) => ({
+        data: this.asDateString(r.data_venda),
+        quantidade: Number(r.quantidade ?? 0),
+        faturamento: Number(r.faturamento ?? 0),
+      })),
     };
   }
 
@@ -311,7 +357,7 @@ export class LancamentosService {
   }
 
   async obterVenda(auth: AuthContext, idVenda: string) {
-    this.assertOperador(auth);
+    assertConsultaVendas(auth);
     const vendas = this.db.table('fato_venda');
     const itens = this.db.table('fato_venda_item');
     const custos = this.db.table('fato_custos_operacionais');
@@ -357,6 +403,8 @@ export class LancamentosService {
       linha_produto: string | null;
       quantidade: number;
       valor_unitario: number;
+      valor_total_item: number | null;
+      custo_total_estimado: number | null;
       produto: string | null;
       cor: string | null;
       unidade_venda: string | null;
@@ -368,6 +416,8 @@ export class LancamentosService {
         i.linha_produto,
         i.quantidade,
         i.valor_unitario,
+        i.valor_total_item,
+        i.custo_total_estimado,
         COALESCE(cp.produto, i.linha_produto) AS produto,
         COALESCE(cp.cor, '') AS cor,
         COALESCE(cp.unidade_venda, 'UN') AS unidade_venda
@@ -401,11 +451,12 @@ export class LancamentosService {
 
     const [fluxoRow] = await this.db.query<{
       data_vencimento: string | null;
+      data_pagamento: string | null;
       status_financeiro: string | null;
       valor_previsto: number | null;
     }>(
       `
-      SELECT data_vencimento, status_financeiro, valor_previsto
+      SELECT data_vencimento, data_pagamento, status_financeiro, valor_previsto
       FROM ${fluxo}
       WHERE id_empresa = @empresaId AND id_venda = @idVenda
       ORDER BY
@@ -444,33 +495,71 @@ export class LancamentosService {
 
     const statusFluxo = (fluxoRow?.status_financeiro ?? 'PREVISTO').toUpperCase();
     const jaRecebido = ['RECEBIDO', 'REALIZADO', 'PAGO'].includes(statusFluxo);
+    const dataPagamento = jaRecebido
+      ? this.asDateString(fluxoRow?.data_pagamento ?? null)
+      : '';
+    const mesRecebimento = dataPagamento ? dataPagamento.slice(0, 7) : null;
+
+    const itensDetalhe = itemRows.map((i) => {
+      const idProdutoCatalogo = parseCtlProductId(i.id_produto);
+      const quantidade = Number(i.quantidade ?? 0);
+      const valorUnitario = Number(i.valor_unitario ?? 0);
+      const faturamento =
+        Number(i.valor_total_item ?? 0) || quantidade * valorUnitario;
+      const gastosTodos = gastosPorItem.get(i.id_venda_item) ?? [];
+      const gastosLancados = gastosTodos.reduce((acc, g) => acc + g.valor, 0);
+      const gastosTotal =
+        gastosLancados > 0
+          ? gastosLancados
+          : Number(i.custo_total_estimado ?? 0);
+      const lucro = faturamento - gastosTotal;
+      const margemPercentual =
+        faturamento > 0 ? (lucro / faturamento) * 100 : 0;
+      return {
+        idVendaItem: i.id_venda_item,
+        idProdutoCatalogo,
+        linha: i.linha_produto ?? '',
+        produto: i.produto ?? '',
+        cor: i.cor ?? '',
+        unidadeVenda: i.unidade_venda ?? 'UN',
+        quantidade,
+        valorUnitario,
+        faturamento,
+        gastosTotal,
+        lucro,
+        margemPercentual,
+        temGastosLancados: gastosLancados > 0,
+        gastos: gastosTodos.filter((g) => g.idCustoCatalogo > 0),
+      };
+    });
+
+    const faturamento = itensDetalhe.reduce((a, i) => a + i.faturamento, 0);
+    const gastos = itensDetalhe.reduce((a, i) => a + i.gastosTotal, 0);
+    const lucro = faturamento - gastos;
+    const margemPercentual = faturamento > 0 ? (lucro / faturamento) * 100 : 0;
 
     return {
       idVenda: venda.id_venda,
       idCliente: venda.id_cliente,
       cliente: venda.cliente,
       dataVenda: this.asDateString(venda.data_venda),
-      dataPrevisaoRecebimento: this.asDateString(fluxoRow?.data_vencimento ?? null),
+      dataPrevisaoRecebimento: this.asDateString(
+        fluxoRow?.data_vencimento ?? null,
+      ),
+      dataPagamento: dataPagamento || null,
+      mesRecebimento,
       observacao: venda.observacao,
       valorTotal: Number(venda.valor_total_informado ?? 0),
       status: venda.status_venda ?? 'FECHADA',
       jaRecebido,
-      itens: itemRows.map((i) => {
-        const idProdutoCatalogo = parseCtlProductId(i.id_produto);
-        return {
-          idVendaItem: i.id_venda_item,
-          idProdutoCatalogo,
-          linha: i.linha_produto ?? '',
-          produto: i.produto ?? '',
-          cor: i.cor ?? '',
-          unidadeVenda: i.unidade_venda ?? 'UN',
-          quantidade: Number(i.quantidade ?? 0),
-          valorUnitario: Number(i.valor_unitario ?? 0),
-          gastos: (gastosPorItem.get(i.id_venda_item) ?? []).filter(
-            (g) => g.idCustoCatalogo > 0,
-          ),
-        };
-      }),
+      totais: {
+        faturamento,
+        gastos,
+        lucro,
+        margemPercentual,
+        temGastosLancados: itensDetalhe.some((i) => i.temGastosLancados),
+      },
+      itens: itensDetalhe,
     };
   }
 

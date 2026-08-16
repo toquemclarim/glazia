@@ -7,6 +7,7 @@ import {
   Lock,
   PlusCircle,
   Receipt,
+  ScanSearch,
   Sparkles,
   UserPlus,
   X,
@@ -179,6 +180,13 @@ export function Home() {
         descricao: 'Resultado do mês, rentabilidade por item e por linha.',
         icon: BarChart3,
         liberado: podeAnalisar,
+      },
+      {
+        path: '/analise-vendas',
+        titulo: 'Análise de vendas',
+        descricao: 'Pesquise ou escolha o dia e leia a margem de cada item.',
+        icon: ScanSearch,
+        liberado: podeAnalisar || podeOperar,
       },
       {
         path: '/despesas',
