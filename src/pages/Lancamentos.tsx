@@ -11,7 +11,7 @@ import {
   TrendingUp,
   X,
 } from 'lucide-react'
-import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react'
+import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import {
   atualizarVendaLancamento,
   criarCustoLancamento,
@@ -51,8 +51,31 @@ type ItemForm = {
 type GastoForm = {
   key: string
   itemKey: string
+  tipoCusto: string
+  linhaCusto: string
   idCusto: string
+  itemLivre: string
   valor: string
+}
+
+function emptyGasto(itemKey: string): GastoForm {
+  return {
+    key: uid(),
+    itemKey,
+    tipoCusto: '',
+    linhaCusto: '',
+    idCusto: '',
+    itemLivre: '',
+    valor: '',
+  }
+}
+
+function ordenarTiposCusto(tipos: string[]) {
+  const outros = tipos.filter((t) => t.toUpperCase() === 'OUTROS')
+  const rest = tipos
+    .filter((t) => t.toUpperCase() !== 'OUTROS')
+    .sort((a, b) => a.localeCompare(b, 'pt-BR'))
+  return [...rest, ...outros]
 }
 
 function money(value: number) {
@@ -317,9 +340,13 @@ function FormVenda({
   const [skusPorLinha, setSkusPorLinha] = useState<
     Record<string, CatalogoProdutoItem[]>
   >({})
-  const [custosPorLinha, setCustosPorLinha] = useState<
+  const [custosPorFiltro, setCustosPorFiltro] = useState<
     Record<string, CatalogoCustoItem[]>
   >({})
+  const [linhasCustoPorTipo, setLinhasCustoPorTipo] = useState<
+    Record<string, string[]>
+  >({})
+  const [tiposCusto, setTiposCusto] = useState<string[]>([])
   const [clientes, setClientes] = useState<Cliente[]>([])
   const [idCliente, setIdCliente] = useState('')
   const [modalCliente, setModalCliente] = useState(false)
@@ -358,14 +385,69 @@ function FormVenda({
     }
   }
 
-  const garantirCustosLinha = async (linha: string) => {
-    if (!linha || custosPorLinha[linha]) return
+  const chaveCusto = (tipo: string, linha: string) => `${tipo}::${linha}`
+
+  const carregarTiposCusto = async () => {
+    if (tiposCusto.length) return
     try {
-      const res = await listarCustosCatalogo({ linha })
-      setCustosPorLinha((prev) => ({ ...prev, [linha]: res.itens }))
+      const res = await listarTiposCustoCatalogo()
+      setTiposCusto(ordenarTiposCusto(res.itens.map((i) => i.tipoCusto)))
     } catch (e) {
-      setErro(e instanceof Error ? e.message : 'Erro ao carregar custos da linha')
+      setErro(e instanceof Error ? e.message : 'Erro ao carregar tipos de custo')
     }
+  }
+
+  const garantirLinhasCustoTipo = async (tipo: string) => {
+    if (!tipo) return [] as string[]
+    const cached = linhasCustoPorTipo[tipo]
+    if (cached) return cached
+    const res = await listarLinhasCustoCatalogo(tipo)
+    const linhas = res.itens.map((i) => i.linha)
+    setLinhasCustoPorTipo((prev) => ({ ...prev, [tipo]: linhas }))
+    return linhas
+  }
+
+  const garantirCustosTipo = async (tipo: string, linha: string) => {
+    if (!tipo) return
+    const key = chaveCusto(tipo, linha)
+    if (custosPorFiltro[key]) return
+    const res = await listarCustosCatalogo(
+      linha ? { tipoCusto: tipo, linha } : { tipoCusto: tipo },
+    )
+    setCustosPorFiltro((prev) => ({ ...prev, [key]: res.itens }))
+  }
+
+  const resolverLinhaCusto = (tipo: string, linhas: string[]) => {
+    if (tipo.toUpperCase() === 'OUTROS') {
+      return linhas.find((l) => l.toUpperCase() === 'GERAL') ?? linhas[0] ?? 'GERAL'
+    }
+    if (linhas.length === 1) return linhas[0]
+    return ''
+  }
+
+  const aplicarTipoNoGasto = async (gastoKey: string, tipo: string) => {
+    if (!tipo) {
+      setGastos((prev) =>
+        prev.map((x) =>
+          x.key === gastoKey
+            ? { ...x, tipoCusto: '', linhaCusto: '', idCusto: '', itemLivre: '' }
+            : x,
+        ),
+      )
+      return
+    }
+    const linhas = await garantirLinhasCustoTipo(tipo)
+    const linha = resolverLinhaCusto(tipo, linhas)
+    if (linha || linhas.length === 0) {
+      await garantirCustosTipo(tipo, linha)
+    }
+    setGastos((prev) =>
+      prev.map((x) =>
+        x.key === gastoKey
+          ? { ...x, tipoCusto: tipo, linhaCusto: linha, idCusto: '', itemLivre: '' }
+          : x,
+      ),
+    )
   }
 
   useEffect(() => {
@@ -405,10 +487,15 @@ function FormVenda({
           })
           if (item.linha) linhasUsadas.add(item.linha)
           for (const g of item.gastos) {
+            const tipo = g.tipoCusto ?? ''
             nextGastos.push({
               key: uid(),
               itemKey: key,
+              tipoCusto: tipo,
+              linhaCusto: g.linha ?? '',
               idCusto: String(g.idCustoCatalogo),
+              itemLivre:
+                tipo.toUpperCase() === 'OUTROS' ? g.descricao : '',
               valor: String(g.valor).replace('.', ','),
             })
           }
@@ -420,15 +507,51 @@ function FormVenda({
 
         await Promise.all(
           [...linhasUsadas].map(async (linha) => {
-            const [prods, custs] = await Promise.all([
-              listarProdutosCatalogo({ linha }),
-              listarCustosCatalogo({ linha }),
-            ])
+            const prods = await listarProdutosCatalogo({ linha })
             if (!alive) return
             setSkusPorLinha((prev) => ({ ...prev, [linha]: prods.itens }))
-            setCustosPorLinha((prev) => ({ ...prev, [linha]: custs.itens }))
           }),
         )
+
+        if (nextGastos.length) {
+          const tiposRes = await listarTiposCustoCatalogo()
+          if (!alive) return
+          setTiposCusto(
+            ordenarTiposCusto(tiposRes.itens.map((i) => i.tipoCusto)),
+          )
+          const tiposUsados = [
+            ...new Set(nextGastos.map((g) => g.tipoCusto).filter(Boolean)),
+          ]
+          await Promise.all(
+            tiposUsados.map(async (tipo) => {
+              const linhasRes = await listarLinhasCustoCatalogo(tipo)
+              const linhas = linhasRes.itens.map((i) => i.linha)
+              if (!alive) return
+              setLinhasCustoPorTipo((prev) => ({ ...prev, [tipo]: linhas }))
+              const linhasGasto = [
+                ...new Set(
+                  nextGastos
+                    .filter((g) => g.tipoCusto === tipo)
+                    .map((g) => g.linhaCusto),
+                ),
+              ]
+              await Promise.all(
+                linhasGasto.map(async (linha) => {
+                  const custs = await listarCustosCatalogo(
+                    linha
+                      ? { tipoCusto: tipo, linha }
+                      : { tipoCusto: tipo },
+                  )
+                  if (!alive) return
+                  setCustosPorFiltro((prev) => ({
+                    ...prev,
+                    [chaveCusto(tipo, linha)]: custs.itens,
+                  }))
+                }),
+              )
+            }),
+          )
+        }
       } catch (e) {
         if (alive) {
           setErro(
@@ -467,18 +590,8 @@ function FormVenda({
         c.cor === item.cor,
     )
 
-  const custosCat = useMemo(() => {
-    const all: CatalogoCustoItem[] = []
-    const seen = new Set<number>()
-    for (const lista of Object.values(custosPorLinha)) {
-      for (const c of lista) {
-        if (seen.has(c.idCusto)) continue
-        seen.add(c.idCusto)
-        all.push(c)
-      }
-    }
-    return all
-  }, [custosPorLinha])
+  const custosDoGasto = (g: GastoForm) =>
+    custosPorFiltro[chaveCusto(g.tipoCusto, g.linhaCusto)] ?? []
 
   const total = itens.reduce((acc, item) => {
     const q = Number(item.quantidade.replace(',', '.'))
@@ -506,7 +619,6 @@ function FormVenda({
   const updateItem = (key: string, patch: Partial<ItemForm>) => {
     if (patch.linha) {
       void garantirSkusLinha(patch.linha)
-      if (incluirGastos) void garantirCustosLinha(patch.linha)
     }
     setItens((prev) =>
       prev.map((item) => {
@@ -547,18 +659,24 @@ function FormVenda({
 
       const gastosPayload = []
       for (const g of gastosDoItem) {
-        const cat = custosCat.find((c) => String(c.idCusto) === g.idCusto)
+        const cat = g.tipoCusto.toUpperCase() === 'OUTROS'
+          ? custosDoGasto(g)[0]
+          : custosDoGasto(g).find((c) => String(c.idCusto) === g.idCusto)
+        const descricao =
+          g.tipoCusto.toUpperCase() === 'OUTROS'
+            ? g.itemLivre.trim()
+            : cat?.descricao
         const valor = Number(g.valor.replace(',', '.'))
-        if (!cat || !(valor > 0)) {
+        if (!cat || !descricao || !(valor > 0)) {
           setErro('Selecione o custo e informe o valor em todos os gastos')
           return
         }
         gastosPayload.push({
           idCustoCatalogo: cat.idCusto,
-          descricao: cat.descricao,
-          tipoCusto: cat.tipoCusto,
+          descricao,
+          tipoCusto: cat.tipoCusto || g.tipoCusto,
           espessura: cat.espessura,
-          linha: cat.linha,
+          linha: g.tipoCusto.toUpperCase() === 'OUTROS' ? 'GERAL' : cat.linha,
           valor,
           quantidade: 1,
         })
@@ -823,9 +941,7 @@ function FormVenda({
                   setGastos([])
                   return
                 }
-                for (const i of itens) {
-                  if (i.linha) void garantirCustosLinha(i.linha)
-                }
+                void carregarTiposCusto()
               }}
             />
             Incluir gastos nestes itens (custos variáveis atrelados à venda e ao
@@ -836,80 +952,137 @@ function FormVenda({
             <fieldset className="lanc-fieldset soft">
               <legend>Gastos</legend>
               {gastos.map((g) => {
-                const itemRef = itens.find((i) => i.key === g.itemKey)
-                const custosDoItem = itemRef?.linha
-                  ? (custosPorLinha[itemRef.linha] ?? [])
-                  : custosCat
+                const isOutros = g.tipoCusto.toUpperCase() === 'OUTROS'
+                const linhasTipo = linhasCustoPorTipo[g.tipoCusto] ?? []
+                const mostraLinha =
+                  Boolean(g.tipoCusto) && !isOutros && linhasTipo.length > 1
+                const itensCusto = custosDoGasto(g)
                 return (
-                <div key={g.key} className="lanc-fields-row compact">
-                  <div className="field">
-                    <label>Item da venda</label>
-                    <SearchableSelect
-                      value={g.itemKey}
-                      options={itens.map((i, idx) => ({
-                        value: i.key,
-                        label: `Item ${idx + 1}${i.linha ? ` · ${i.linha}` : ''}${i.produto ? ` · ${i.produto}` : ''}`,
-                      }))}
-                      onChange={(itemKey) => {
-                        const nextItem = itens.find((i) => i.key === itemKey)
-                        if (nextItem?.linha) void garantirCustosLinha(nextItem.linha)
-                        setGastos((prev) =>
-                          prev.map((x) =>
-                            x.key === g.key ? { ...x, itemKey, idCusto: '' } : x,
-                          ),
-                        )
-                      }}
-                    />
+                <div key={g.key} className="lanc-gasto-block">
+                  <div className="lanc-fields-row">
+                    <div className="field">
+                      <label>Item da venda</label>
+                      <SearchableSelect
+                        value={g.itemKey}
+                        options={itens.map((i, idx) => ({
+                          value: i.key,
+                          label: `Item ${idx + 1}${i.linha ? ` · ${i.linha}` : ''}${i.produto ? ` · ${i.produto}` : ''}`,
+                        }))}
+                        onChange={(itemKey) =>
+                          setGastos((prev) =>
+                            prev.map((x) =>
+                              x.key === g.key ? { ...x, itemKey } : x,
+                            ),
+                          )
+                        }
+                      />
+                    </div>
+                    <div className="field">
+                      <label>Tipo de custo</label>
+                      <SearchableSelect
+                        value={g.tipoCusto}
+                        required={incluirGastos}
+                        placeholder="Busque o tipo…"
+                        options={tiposCusto.map((t) => ({ value: t, label: t }))}
+                        onChange={(tipo) => void aplicarTipoNoGasto(g.key, tipo)}
+                      />
+                    </div>
+                    {mostraLinha && (
+                      <div className="field">
+                        <label>Linha</label>
+                        <SearchableSelect
+                          value={g.linhaCusto}
+                          required={incluirGastos}
+                          placeholder="Busque a linha…"
+                          options={linhasTipo.map((l) => ({ value: l, label: l }))}
+                          onChange={(linha) => {
+                            setGastos((prev) =>
+                              prev.map((x) =>
+                                x.key === g.key
+                                  ? { ...x, linhaCusto: linha, idCusto: '' }
+                                  : x,
+                              ),
+                            )
+                            if (g.tipoCusto) void garantirCustosTipo(g.tipoCusto, linha)
+                          }}
+                        />
+                      </div>
+                    )}
+                    <div className="field grow">
+                      <label>Item</label>
+                      {isOutros ? (
+                        <input
+                          value={g.itemLivre}
+                          onChange={(e) =>
+                            setGastos((prev) =>
+                              prev.map((x) =>
+                                x.key === g.key
+                                  ? { ...x, itemLivre: e.target.value }
+                                  : x,
+                              ),
+                            )
+                          }
+                          placeholder="Digite o item"
+                          required={incluirGastos}
+                        />
+                      ) : (
+                        <SearchableSelect
+                          value={g.idCusto}
+                          required={incluirGastos}
+                          disabled={
+                            !g.tipoCusto ||
+                            (linhasTipo.length > 1 && !g.linhaCusto)
+                          }
+                          placeholder={
+                            !g.tipoCusto
+                              ? 'Escolha o tipo'
+                              : linhasTipo.length > 1 && !g.linhaCusto
+                                ? 'Escolha a linha'
+                                : 'Busque o item…'
+                          }
+                          options={itensCusto.map((c) => ({
+                            value: String(c.idCusto),
+                            label: c.rotulo,
+                          }))}
+                          onChange={(idCusto) =>
+                            setGastos((prev) =>
+                              prev.map((x) =>
+                                x.key === g.key ? { ...x, idCusto } : x,
+                              ),
+                            )
+                          }
+                        />
+                      )}
+                    </div>
                   </div>
-                  <div className="field grow">
-                    <label>Custo</label>
-                    <SearchableSelect
-                      value={g.idCusto}
-                      required={incluirGastos}
-                      placeholder={
-                        itemRef?.linha && !custosPorLinha[itemRef.linha]
-                          ? 'Carregando custos…'
-                          : 'Busque o custo…'
+                  <div className="lanc-fields-row compact">
+                    <div className="field">
+                      <label>Valor (R$)</label>
+                      <input
+                        inputMode="decimal"
+                        value={g.valor}
+                        onChange={(e) =>
+                          setGastos((prev) =>
+                            prev.map((x) =>
+                              x.key === g.key
+                                ? { ...x, valor: e.target.value }
+                                : x,
+                            ),
+                          )
+                        }
+                        required={incluirGastos}
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      className="btn-ghost lanc-remove"
+                      onClick={() =>
+                        setGastos((prev) => prev.filter((x) => x.key !== g.key))
                       }
-                      options={custosDoItem.map((c) => ({
-                        value: String(c.idCusto),
-                        label: c.rotulo,
-                      }))}
-                      onChange={(idCusto) =>
-                        setGastos((prev) =>
-                          prev.map((x) =>
-                            x.key === g.key ? { ...x, idCusto } : x,
-                          ),
-                        )
-                      }
-                    />
+                    >
+                      <Trash2 size={16} />
+                    </button>
                   </div>
-                  <div className="field">
-                    <label>Valor (R$)</label>
-                    <input
-                      inputMode="decimal"
-                      value={g.valor}
-                      onChange={(e) =>
-                        setGastos((prev) =>
-                          prev.map((x) =>
-                            x.key === g.key
-                              ? { ...x, valor: e.target.value }
-                              : x,
-                          ),
-                        )
-                      }
-                      required={incluirGastos}
-                    />
-                  </div>
-                  <button
-                    type="button"
-                    className="btn-ghost lanc-remove"
-                    onClick={() =>
-                      setGastos((prev) => prev.filter((x) => x.key !== g.key))
-                    }
-                  >
-                    <Trash2 size={16} />
-                  </button>
                 </div>
                 )
               })}
@@ -917,16 +1090,10 @@ function FormVenda({
                 type="button"
                 className="btn btn-ghost lanc-add-row"
                 onClick={() => {
-                  const first = itens[0]
-                  if (first?.linha) void garantirCustosLinha(first.linha)
+                  void carregarTiposCusto()
                   setGastos((prev) => [
                     ...prev,
-                    {
-                      key: uid(),
-                      itemKey: first?.key ?? '',
-                      idCusto: '',
-                      valor: '',
-                    },
+                    emptyGasto(itens[0]?.key ?? ''),
                   ])
                 }}
               >
@@ -1222,12 +1389,7 @@ function FormCusto({
   useEffect(() => {
     listarTiposCustoCatalogo()
       .then((res) => {
-        const all = res.itens.map((i) => i.tipoCusto)
-        const outros = all.filter((t) => t.toUpperCase() === 'OUTROS')
-        const rest = all
-          .filter((t) => t.toUpperCase() !== 'OUTROS')
-          .sort((a, b) => a.localeCompare(b, 'pt-BR'))
-        setTipos([...rest, ...outros])
+        setTipos(ordenarTiposCusto(res.itens.map((i) => i.tipoCusto)))
       })
       .catch((e) =>
         setErro(e instanceof Error ? e.message : 'Erro ao carregar tipos'),
