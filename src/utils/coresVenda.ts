@@ -4,6 +4,64 @@ export type PoliticaCorLinha = TipoCorPrincipal | 'PERGUNTAR'
 
 export const COR_SENTINELA = 'GERAL'
 
+/** Espelha `dt_catalogo.dim_cor` (sem GERAL). Usado se `/catalogo/cores` falhar. */
+const CORES_AMBOS = [
+  'AÇO CORTEN',
+  'AZUL MARINHO',
+  'BRANCO',
+  'BRONZE',
+  'CHAMPAGNE',
+  'ESCOVADO',
+  'GRAFITE',
+  'NATURAL/ALUMÍNIO',
+  'POLIDO',
+  'PRATA',
+  'PRETO',
+] as const
+
+const CORES_PERFIL = [
+  'ANODIZADO NATURAL',
+  'ANODIZADO PRETO',
+  'BEGE',
+  'BRANCO FOSCO',
+  'CINZA',
+  'GOLD ROSE',
+  'MARROM',
+  'PRETO FOSCO',
+  'VERDE MUSGO',
+] as const
+
+const CORES_VIDRO = [
+  'ESPELHO BRONZE',
+  'ESPELHO PRATA',
+  'EXTRA CLEAR',
+  'FOSCO ÁCIDO',
+  'FUMÊ',
+  'INCOLOR',
+  'JATEADO',
+  'PINTADO PRETO',
+  'REFLETIVO AZUL',
+  'REFLETIVO PRATA',
+  'SERIGRAFADO BRANCO',
+  'VERDE',
+] as const
+
+const CORES_ACESSORIO = ['CROMO', 'INOX ESCOVADO', 'INOX POLIDO'] as const
+
+function uniqSortCores(cores: string[]) {
+  return [...new Set(cores.filter(Boolean))].sort((a, b) =>
+    a.localeCompare(b, 'pt-BR'),
+  )
+}
+
+export function coresDimPadrao(): Record<TipoCorPrincipal, string[]> {
+  return {
+    PERFIL: uniqSortCores([...CORES_PERFIL, ...CORES_AMBOS]),
+    VIDRO: uniqSortCores([...CORES_VIDRO, ...CORES_AMBOS]),
+    ACESSORIO: uniqSortCores([...CORES_ACESSORIO, ...CORES_AMBOS]),
+  }
+}
+
 /** GOLD / SUPREMA / 25 = perfil; TEMPERADO = vidro; demais perguntam. */
 export function politicaDaLinha(
   codigo: string | null | undefined,

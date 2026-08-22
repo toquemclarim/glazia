@@ -43,6 +43,7 @@ import { onTourAction } from '../tour/events'
 import {
   COR_SENTINELA,
   chipsCoresItem,
+  coresDimPadrao,
   labelCorPrincipal,
   perguntaOptIn,
   politicaDaLinha,
@@ -384,7 +385,9 @@ function FormVenda({
   const [politicaPorLinha, setPoliticaPorLinha] = useState<
     Record<string, PoliticaCorLinha>
   >({})
-  const [coresDim, setCoresDim] = useState<Record<string, string[]>>({})
+  const [coresDim, setCoresDim] = useState<Record<string, string[]>>(
+    coresDimPadrao,
+  )
   /** Cache de SKUs por linha — carrega sob demanda (evita truncar o catálogo). */
   const [skusPorLinha, setSkusPorLinha] = useState<
     Record<string, CatalogoProdutoItem[]>
@@ -519,26 +522,23 @@ function FormVenda({
         )
         setClientes(cli.itens.filter((c) => c.matricula !== '00000001'))
 
-        try {
-          const [perfil, vidro, acessorio] = await Promise.all([
-            listarCoresCatalogo('PERFIL'),
-            listarCoresCatalogo('VIDRO'),
-            listarCoresCatalogo('ACESSORIO'),
-          ])
-          if (!alive) return
-          setCoresDim({
-            PERFIL: perfil.itens.map((c) => c.codigo),
-            VIDRO: vidro.itens.map((c) => c.codigo),
-            ACESSORIO: acessorio.itens.map((c) => c.codigo),
-          })
-        } catch (coresErr) {
-          if (!alive) return
-          setErro(
-            coresErr instanceof Error
-              ? coresErr.message
-              : 'Não foi possível carregar as cores de vidro e acessórios',
-          )
-        }
+        const padrao = coresDimPadrao()
+        const next = { ...padrao }
+        await Promise.all(
+          (['PERFIL', 'VIDRO', 'ACESSORIO'] as const).map(async (tipo) => {
+            try {
+              const res = await listarCoresCatalogo(tipo)
+              const codigos = res.itens
+                .map((c) => c.codigo)
+                .filter((c) => c && c !== COR_SENTINELA)
+              if (codigos.length > 0) next[tipo] = codigos
+            } catch {
+              /* API antiga/offline: mantém o catálogo local */
+            }
+          }),
+        )
+        if (!alive) return
+        setCoresDim(next)
 
         if (!vendaId) return
 
