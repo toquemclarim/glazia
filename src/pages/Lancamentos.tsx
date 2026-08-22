@@ -1,4 +1,4 @@
-import {
+﻿import {
   ArrowLeft,
   Check,
   Frame,
@@ -14,14 +14,18 @@ import {
   Wrench,
   X,
 } from 'lucide-react'
-import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useState,
+  type FormEvent,
+  type ReactNode,
+} from 'react'
 import {
   atualizarVendaLancamento,
-  criarCustoLancamento,
   criarVendaLancamento,
   excluirVendaLancamento,
   listarClientes,
-  listarCoresCatalogo,
   listarCustosCatalogo,
   listarLinhasCatalogo,
   listarLinhasCustoCatalogo,
@@ -40,11 +44,15 @@ import { ClienteFormModal } from '../components/ClienteFormModal'
 import { ItemPreview } from '../components/ItemPreview'
 import { SearchableSelect } from '../components/SearchableSelect'
 import { onTourAction } from '../tour/events'
+import { FormCusto, GerenciarCustos } from './LancamentosCustos'
 import {
   COR_SENTINELA,
+  aplicarCoresCatalogo,
   chipsCoresItem,
   coresDimPadrao,
+  isErroRotaCoresCatalogo,
   labelCorPrincipal,
+  mensagemFalhaSalvarVenda,
   perguntaOptIn,
   politicaDaLinha,
   rotuloTipoCor,
@@ -53,7 +61,7 @@ import {
   type TipoCorPrincipal,
 } from '../utils/coresVenda'
 
-type Modo = null | 'venda' | 'custo' | 'gerenciar'
+type Modo = null | 'venda' | 'custo' | 'gerenciar' | 'gerenciar-custos'
 
 type ItemForm = {
   key: string
@@ -78,7 +86,8 @@ type GastoForm = {
   linhaCusto: string
   idCusto: string
   itemLivre: string
-  valor: string
+  quantidade: string
+  valorUnitario: string
 }
 
 function emptyGasto(itemKey: string): GastoForm {
@@ -89,7 +98,8 @@ function emptyGasto(itemKey: string): GastoForm {
     linhaCusto: '',
     idCusto: '',
     itemLivre: '',
-    valor: '',
+    quantidade: '1',
+    valorUnitario: '',
   }
 }
 
@@ -103,6 +113,17 @@ function ordenarTiposCusto(tipos: string[]) {
 
 function money(value: number) {
   return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+}
+
+function parseDecimal(value: string) {
+  return Number(String(value).replace(',', '.'))
+}
+
+function totalGastoForm(g: { quantidade: string; valorUnitario: string }) {
+  const q = parseDecimal(g.quantidade)
+  const u = parseDecimal(g.valorUnitario)
+  if (!(q > 0) || Number.isNaN(u) || u < 0) return 0
+  return Math.round(q * u * 100) / 100
 }
 
 function todayInput() {
@@ -137,11 +158,11 @@ const TIPO_COR_UI: Array<{
   hint: string
   Icon: typeof Frame
 }> = [
-  { id: 'PERFIL', label: 'Perfil', hint: 'Acabamento do alumínio', Icon: Frame },
-  { id: 'VIDRO', label: 'Vidro', hint: 'Incolor, fumê, extra clear…', Icon: Layers },
+  { id: 'PERFIL', label: 'Perfil', hint: 'Acabamento do alumÃ­nio', Icon: Frame },
+  { id: 'VIDRO', label: 'Vidro', hint: 'Incolor, fumÃª, extra clearâ€¦', Icon: Layers },
   {
     id: 'ACESSORIO',
-    label: 'Acessórios',
+    label: 'AcessÃ³rios',
     hint: 'Ferragem, puxador, kit',
     Icon: Wrench,
   },
@@ -150,6 +171,7 @@ const TIPO_COR_UI: Array<{
 export function Lancamentos() {
   const [modo, setModo] = useState<Modo>(null)
   const [editVendaId, setEditVendaId] = useState<string | null>(null)
+  const [editCustoId, setEditCustoId] = useState<string | null>(null)
   const [erro, setErro] = useState<string | null>(null)
   const [sucesso, setSucesso] = useState<string | null>(null)
 
@@ -158,17 +180,20 @@ export function Lancamentos() {
       if (action === 'reset-lancamentos') {
         setModo(null)
         setEditVendaId(null)
+        setEditCustoId(null)
         setErro(null)
       }
       if (action === 'open-venda') {
         setErro(null)
         setSucesso(null)
         setEditVendaId(null)
+        setEditCustoId(null)
         setModo('venda')
       }
       if (action === 'open-custo') {
         setErro(null)
         setSucesso(null)
+        setEditCustoId(null)
         setModo('custo')
       }
     })
@@ -180,11 +205,11 @@ export function Lancamentos() {
         <>
           <header className="lanc-intro fade-up">
             <p className="section-title" style={{ marginBottom: '0.35rem' }}>
-              Operação do dia
+              OperaÃ§Ã£o do dia
             </p>
-            <h2 className="lanc-title">O que você quer lançar?</h2>
+            <h2 className="lanc-title">O que vocÃª quer lanÃ§ar?</h2>
             <p className="lanc-subtitle">
-              Formulários com menus do catálogo. Os fatos vão para o analytics.
+              FormulÃ¡rios com menus do catÃ¡logo. Os fatos vÃ£o para o analytics.
             </p>
           </header>
 
@@ -205,8 +230,8 @@ export function Lancamentos() {
                 <TrendingUp size={28} />
               </span>
               <span className="lanc-choice-copy">
-                <strong>Lançar venda</strong>
-                <span>Itens, valores e previsão de recebimento</span>
+                <strong>LanÃ§ar venda</strong>
+                <span>Itens, valores e previsÃ£o de recebimento</span>
               </span>
               <span className="lanc-choice-pulse plus" aria-hidden="true">
                 <Plus size={16} />
@@ -220,6 +245,7 @@ export function Lancamentos() {
               onClick={() => {
                 setErro(null)
                 setSucesso(null)
+                setEditCustoId(null)
                 setModo('custo')
               }}
             >
@@ -228,7 +254,7 @@ export function Lancamentos() {
                 <TrendingDown size={28} />
               </span>
               <span className="lanc-choice-copy">
-                <strong>Lançar custo</strong>
+                <strong>LanÃ§ar custo</strong>
                 <span>Estoque ou associado a uma venda</span>
               </span>
               <span className="lanc-choice-pulse minus" aria-hidden="true">
@@ -252,7 +278,27 @@ export function Lancamentos() {
               </span>
               <span className="lanc-choice-copy">
                 <strong>Gerenciar vendas</strong>
-                <span>Editar ou excluir lançamentos recentes</span>
+                <span>Editar ou excluir lanÃ§amentos recentes</span>
+              </span>
+            </button>
+
+            <button
+              type="button"
+              data-tour="lanc-gerenciar-custos"
+              className="lanc-choice glass cost fade-up fade-up-delay-3"
+              onClick={() => {
+                setErro(null)
+                setSucesso(null)
+                setModo('gerenciar-custos')
+              }}
+            >
+              <span className="lanc-choice-orb" aria-hidden="true" />
+              <span className="lanc-choice-icon">
+                <List size={28} />
+              </span>
+              <span className="lanc-choice-copy">
+                <strong>Gerenciar custos</strong>
+                <span>HistÃ³rico de custos de estoque (sem venda)</span>
               </span>
             </button>
           </div>
@@ -290,11 +336,30 @@ export function Lancamentos() {
         />
       )}
 
+      {modo === 'gerenciar-custos' && (
+        <GerenciarCustos
+          onBack={() => setModo(null)}
+          onEdit={(id) => {
+            setErro(null)
+            setEditCustoId(id)
+            setModo('custo')
+          }}
+          onDeleted={(msg) => setSucesso(msg)}
+          erro={erro}
+          setErro={setErro}
+        />
+      )}
+
       {modo === 'custo' && (
         <FormCusto
-          onBack={() => setModo(null)}
+          custoId={editCustoId}
+          onBack={() => {
+            setEditCustoId(null)
+            setModo(editCustoId ? 'gerenciar-custos' : null)
+          }}
           onDone={(msg) => {
             setSucesso(msg)
+            setEditCustoId(null)
             setModo(null)
           }}
           erro={erro}
@@ -302,7 +367,10 @@ export function Lancamentos() {
         />
       )}
 
-      {sucesso && (modo === null || modo === 'gerenciar') && (
+      {sucesso &&
+        (modo === null ||
+          modo === 'gerenciar' ||
+          modo === 'gerenciar-custos') && (
         <div className="lanc-toast success glass fade-up" role="status">
           <Check size={18} />
           <span>{sucesso}</span>
@@ -372,7 +440,7 @@ function FormVenda({
   onBack,
   onDone,
   erro,
-  setErro,
+  setErro: setErroProp,
 }: {
   vendaId?: string | null
   onBack: () => void
@@ -380,6 +448,16 @@ function FormVenda({
   erro: string | null
   setErro: (v: string | null) => void
 }) {
+  const setErro = useCallback(
+    (v: string | null) => {
+      if (v && isErroRotaCoresCatalogo(v)) {
+        setErroProp(null)
+        return
+      }
+      setErroProp(v)
+    },
+    [setErroProp],
+  )
   const editando = Boolean(vendaId)
   const [linhasOpts, setLinhasOpts] = useState<string[]>([])
   const [politicaPorLinha, setPoliticaPorLinha] = useState<
@@ -388,7 +466,7 @@ function FormVenda({
   const [coresDim, setCoresDim] = useState<Record<string, string[]>>(
     coresDimPadrao,
   )
-  /** Cache de SKUs por linha — carrega sob demanda (evita truncar o catálogo). */
+  /** Cache de SKUs por linha â€” carrega sob demanda (evita truncar o catÃ¡logo). */
   const [skusPorLinha, setSkusPorLinha] = useState<
     Record<string, CatalogoProdutoItem[]>
   >({})
@@ -521,24 +599,7 @@ function FormVenda({
           ),
         )
         setClientes(cli.itens.filter((c) => c.matricula !== '00000001'))
-
-        const padrao = coresDimPadrao()
-        const next = { ...padrao }
-        await Promise.all(
-          (['PERFIL', 'VIDRO', 'ACESSORIO'] as const).map(async (tipo) => {
-            try {
-              const res = await listarCoresCatalogo(tipo)
-              const codigos = res.itens
-                .map((c) => c.codigo)
-                .filter((c) => c && c !== COR_SENTINELA)
-              if (codigos.length > 0) next[tipo] = codigos
-            } catch {
-              /* API antiga/offline: mantém o catálogo local */
-            }
-          }),
-        )
-        if (!alive) return
-        setCoresDim(next)
+        setCoresDim(aplicarCoresCatalogo(linhas.cores))
 
         if (!vendaId) return
 
@@ -584,7 +645,10 @@ function FormVenda({
               idCusto: String(g.idCustoCatalogo),
               itemLivre:
                 tipo.toUpperCase() === 'OUTROS' ? g.descricao : '',
-              valor: String(g.valor).replace('.', ','),
+              quantidade: String(g.quantidade ?? 1).replace('.', ','),
+              valorUnitario: String(
+                g.valorUnitario ?? g.valor,
+              ).replace('.', ','),
             })
           }
         }
@@ -642,9 +706,9 @@ function FormVenda({
         }
       } catch (e) {
         if (alive) {
-          setErro(
-            e instanceof Error ? e.message : 'Erro ao carregar catálogo/venda',
-          )
+          const msg =
+            e instanceof Error ? e.message : 'Erro ao carregar catÃ¡logo/venda'
+          if (!isErroRotaCoresCatalogo(msg)) setErro(msg)
         }
       } finally {
         if (alive) setLoading(false)
@@ -655,7 +719,7 @@ function FormVenda({
     }
   }, [setErro, vendaId])
 
-  /** Cascata canônica: Linha → Produto → Cor (dados da linha carregada). */
+  /** Cascata canÃ´nica: Linha â†’ Produto â†’ Cor (dados da linha carregada). */
   const produtosPara = (linha: string) =>
     [
       ...new Set((skusPorLinha[linha] ?? []).map((c) => c.produto)),
@@ -707,11 +771,15 @@ function FormVenda({
     custosPorFiltro[chaveCusto(g.tipoCusto, g.linhaCusto)] ?? []
 
   const total = itens.reduce((acc, item) => {
-    const q = Number(item.quantidade.replace(',', '.'))
-    const v = Number(item.valorUnitario.replace(',', '.'))
+    const q = parseDecimal(item.quantidade)
+    const v = parseDecimal(item.valorUnitario)
     if (!(q > 0) || !(v >= 0)) return acc
     return acc + q * v
   }, 0)
+
+  const totalCustos = incluirGastos
+    ? gastos.reduce((acc, g) => acc + totalGastoForm(g), 0)
+    : 0
 
   const previewList = itens
     .filter((i) => i.linha || i.produto)
@@ -741,7 +809,7 @@ function FormVenda({
         }).map((c) => `${rotuloTipoCor(c.tipo)} ${c.cor}`),
       ]
         .filter(Boolean)
-        .join(' · '),
+        .join(' Â· '),
       index,
     }))
 
@@ -811,14 +879,14 @@ function FormVenda({
               ? item.corVidroExtra
               : item.corAcessorioExtra
         if (on && !val) {
-          setErro(`Informe a ${labelCorPrincipal(extra).toLowerCase()} ou desmarque a opção`)
+          setErro(`Informe a ${labelCorPrincipal(extra).toLowerCase()} ou desmarque a opÃ§Ã£o`)
           return
         }
       }
       const quantidade = Number(item.quantidade.replace(',', '.'))
       const valorUnitario = Number(item.valorUnitario.replace(',', '.'))
       if (!(quantidade > 0) || Number.isNaN(valorUnitario) || valorUnitario < 0) {
-        setErro('Quantidade e valor unitário inválidos')
+        setErro('Quantidade e valor unitÃ¡rio invÃ¡lidos')
         return
       }
 
@@ -835,9 +903,20 @@ function FormVenda({
           g.tipoCusto.toUpperCase() === 'OUTROS'
             ? g.itemLivre.trim()
             : cat?.descricao
-        const valor = Number(g.valor.replace(',', '.'))
-        if (!cat || !descricao || !(valor > 0)) {
-          setErro('Selecione o custo e informe o valor em todos os gastos')
+        const quantidade = parseDecimal(g.quantidade)
+        const valorUnitario = parseDecimal(g.valorUnitario)
+        const valor = totalGastoForm(g)
+        if (
+          !cat ||
+          !descricao ||
+          !(quantidade > 0) ||
+          Number.isNaN(valorUnitario) ||
+          valorUnitario < 0 ||
+          !(valor > 0)
+        ) {
+          setErro(
+            'Selecione o custo e informe quantidade e valor unitÃ¡rio em todos os gastos',
+          )
           return
         }
         gastosPayload.push({
@@ -847,7 +926,8 @@ function FormVenda({
           espessura: cat.espessura,
           linha: g.tipoCusto.toUpperCase() === 'OUTROS' ? 'GERAL' : cat.linha,
           valor,
-          quantidade: 1,
+          quantidade,
+          valorUnitario,
         })
       }
 
@@ -888,7 +968,7 @@ function FormVenda({
     }
 
     if (!previsao) {
-      setErro('Informe a previsão de recebimento')
+      setErro('Informe a previsÃ£o de recebimento')
       return
     }
 
@@ -909,10 +989,10 @@ function FormVenda({
     try {
       const res = await criarVendaLancamento(payload)
       onDone(
-        `${res.mensagem} · ${money(res.valorTotal)} · ${res.qtdItens} item(ns)`,
+        `${res.mensagem} Â· ${money(res.valorTotal)} Â· ${res.qtdItens} item(ns)`,
       )
     } catch (cause) {
-      setErro(cause instanceof Error ? cause.message : 'Falha ao salvar venda')
+      setErro(mensagemFalhaSalvarVenda(cause))
     } finally {
       setSalvando(false)
     }
@@ -927,12 +1007,10 @@ function FormVenda({
       setConfirmEdit(false)
       setPendingPayload(null)
       onDone(
-        `${res.mensagem} · ${money(res.valorTotal)} · ${res.qtdItens} item(ns)`,
+        `${res.mensagem} Â· ${money(res.valorTotal)} Â· ${res.qtdItens} item(ns)`,
       )
     } catch (cause) {
-      setErro(
-        cause instanceof Error ? cause.message : 'Falha ao atualizar venda',
-      )
+      setErro(mensagemFalhaSalvarVenda(cause))
     } finally {
       setSalvando(false)
     }
@@ -948,7 +1026,7 @@ function FormVenda({
     >
       {loading ? (
         <p className="lanc-muted">
-          <Loader2 className="spin" size={16} /> Carregando catálogo…
+          <Loader2 className="spin" size={16} /> Carregando catÃ¡logoâ€¦
         </p>
       ) : (
         <form className="lanc-form-grid" onSubmit={(e) => void salvar(e)}>
@@ -962,10 +1040,10 @@ function FormVenda({
                     id="venda-cliente"
                     value={idCliente}
                     required
-                    placeholder="Busque o cliente…"
+                    placeholder="Busque o clienteâ€¦"
                     options={clientes.map((c) => ({
                       value: c.matricula,
-                      label: `${c.matricula} · ${c.nome} (${c.tipoPessoa})`,
+                      label: `${c.matricula} Â· ${c.nome} (${c.tipoPessoa})`,
                     }))}
                     onChange={setIdCliente}
                   />
@@ -1026,13 +1104,13 @@ function FormVenda({
                     id={`linha-${item.key}`}
                     value={item.linha}
                     required
-                    placeholder="Busque a linha…"
+                    placeholder="Busque a linhaâ€¦"
                     options={linhasOpts.map((l) => ({ value: l, label: l }))}
                     onChange={(linha) => updateItem(item.key, { linha })}
                   />
                   {carregandoLinha === item.linha && (
                     <span className="lanc-muted" style={{ fontSize: '0.75rem' }}>
-                      Carregando produtos…
+                      Carregando produtosâ€¦
                     </span>
                   )}
                 </div>
@@ -1048,8 +1126,8 @@ function FormVenda({
                       !item.linha
                         ? 'Escolha a linha'
                         : !skusPorLinha[item.linha]
-                          ? 'Carregando…'
-                          : 'Busque o produto…'
+                          ? 'Carregandoâ€¦'
+                          : 'Busque o produtoâ€¦'
                     }
                     options={produtosPara(item.linha).map((p) => ({
                       value: p,
@@ -1062,7 +1140,7 @@ function FormVenda({
 
               {politicaDa(item.linha) === 'PERGUNTAR' && item.produto ? (
                 <div className="lanc-tipo-cor">
-                  <p className="lanc-tipo-cor-label">Qual é a cor principal?</p>
+                  <p className="lanc-tipo-cor-label">Qual Ã© a cor principal?</p>
                   <div className="lanc-tipo-cor-grid" role="radiogroup">
                     {TIPO_COR_UI.map(({ id, label, hint, Icon }) => {
                       const ativo = item.tipoCorPrincipal === id
@@ -1109,7 +1187,7 @@ function FormVenda({
                         : politicaDa(item.linha) === 'PERGUNTAR' &&
                             !item.tipoCorPrincipal
                           ? 'Escolha o tipo da cor'
-                          : 'Busque a cor…'
+                          : 'Busque a corâ€¦'
                     }
                     options={coresPara(item).map((c) => ({
                       value: c,
@@ -1124,8 +1202,8 @@ function FormVenda({
                 <div className="lanc-opt-cores">
                   <p className="lanc-opt-cores-title">Cores opcionais</p>
                   <p className="lanc-opt-cores-hint">
-                    Informe só se quiser. O que ficar em branco entra como não
-                    informado na análise.
+                    Informe sÃ³ se quiser. O que ficar em branco entra como nÃ£o
+                    informado na anÃ¡lise.
                   </p>
                   {slotsExtras(tipoDoItem(item) as TipoCorPrincipal).map(
                     (slot) => {
@@ -1178,7 +1256,7 @@ function FormVenda({
                               <SearchableSelect
                                 id={`extra-${slot}-${item.key}`}
                                 value={valor}
-                                placeholder={`Busque a ${rotuloTipoCor(slot).toLowerCase()}…`}
+                                placeholder={`Busque a ${rotuloTipoCor(slot).toLowerCase()}â€¦`}
                                 options={coresOptIn(slot).map((c) => ({
                                   value: c,
                                   label: c,
@@ -1221,7 +1299,7 @@ function FormVenda({
                                   }
                                 }}
                               >
-                                Não informar
+                                NÃ£o informar
                               </button>
                             </div>
                           ) : null}
@@ -1246,7 +1324,7 @@ function FormVenda({
                   />
                 </div>
                 <div className="field">
-                  <label htmlFor={`vu-${item.key}`}>Valor unitário (R$)</label>
+                  <label htmlFor={`vu-${item.key}`}>Valor unitÃ¡rio (R$)</label>
                   <input
                     id={`vu-${item.key}`}
                     inputMode="decimal"
@@ -1283,7 +1361,7 @@ function FormVenda({
 
           <div className="lanc-fields-row" data-tour="lanc-previsao">
             <div className="field">
-              <label htmlFor="previsao">Previsão de recebimento</label>
+              <label htmlFor="previsao">PrevisÃ£o de recebimento</label>
               <input
                 id="previsao"
                 type="date"
@@ -1293,12 +1371,12 @@ function FormVenda({
               />
             </div>
             <div className="field full">
-              <label htmlFor="obs-venda">Observação (opcional)</label>
+              <label htmlFor="obs-venda">ObservaÃ§Ã£o (opcional)</label>
               <input
                 id="obs-venda"
                 value={observacao}
                 onChange={(e) => setObservacao(e.target.value)}
-                placeholder="Obra, referência, observações…"
+                placeholder="Obra, referÃªncia, observaÃ§Ãµesâ€¦"
               />
             </div>
           </div>
@@ -1316,7 +1394,7 @@ function FormVenda({
                 void carregarTiposCusto()
               }}
             />
-            Incluir gastos nestes itens (custos variáveis atrelados à venda e ao
+            Incluir gastos nestes itens (custos variÃ¡veis atrelados Ã  venda e ao
             cliente)
           </label>
 
@@ -1338,7 +1416,7 @@ function FormVenda({
                         value={g.itemKey}
                         options={itens.map((i, idx) => ({
                           value: i.key,
-                          label: `Item ${idx + 1}${i.linha ? ` · ${i.linha}` : ''}${i.produto ? ` · ${i.produto}` : ''}`,
+                          label: `Item ${idx + 1}${i.linha ? ` Â· ${i.linha}` : ''}${i.produto ? ` Â· ${i.produto}` : ''}`,
                         }))}
                         onChange={(itemKey) =>
                           setGastos((prev) =>
@@ -1354,7 +1432,7 @@ function FormVenda({
                       <SearchableSelect
                         value={g.tipoCusto}
                         required={incluirGastos}
-                        placeholder="Busque o tipo…"
+                        placeholder="Busque o tipoâ€¦"
                         options={tiposCusto.map((t) => ({ value: t, label: t }))}
                         onChange={(tipo) => void aplicarTipoNoGasto(g.key, tipo)}
                       />
@@ -1365,7 +1443,7 @@ function FormVenda({
                         <SearchableSelect
                           value={g.linhaCusto}
                           required={incluirGastos}
-                          placeholder="Busque a linha…"
+                          placeholder="Busque a linhaâ€¦"
                           options={linhasTipo.map((l) => ({ value: l, label: l }))}
                           onChange={(linha) => {
                             setGastos((prev) =>
@@ -1410,7 +1488,7 @@ function FormVenda({
                               ? 'Escolha o tipo'
                               : linhasTipo.length > 1 && !g.linhaCusto
                                 ? 'Escolha a linha'
-                                : 'Busque o item…'
+                                : 'Busque o itemâ€¦'
                           }
                           options={itensCusto.map((c) => ({
                             value: String(c.idCusto),
@@ -1429,20 +1507,47 @@ function FormVenda({
                   </div>
                   <div className="lanc-fields-row compact">
                     <div className="field">
-                      <label>Valor (R$)</label>
+                      <label>Quantidade</label>
                       <input
                         inputMode="decimal"
-                        value={g.valor}
+                        value={g.quantidade}
                         onChange={(e) =>
                           setGastos((prev) =>
                             prev.map((x) =>
                               x.key === g.key
-                                ? { ...x, valor: e.target.value }
+                                ? { ...x, quantidade: e.target.value }
                                 : x,
                             ),
                           )
                         }
                         required={incluirGastos}
+                      />
+                    </div>
+                    <div className="field">
+                      <label>Valor unitÃ¡rio (R$)</label>
+                      <input
+                        inputMode="decimal"
+                        placeholder="0,00"
+                        value={g.valorUnitario}
+                        onChange={(e) =>
+                          setGastos((prev) =>
+                            prev.map((x) =>
+                              x.key === g.key
+                                ? { ...x, valorUnitario: e.target.value }
+                                : x,
+                            ),
+                          )
+                        }
+                        required={incluirGastos}
+                      />
+                    </div>
+                    <div className="field">
+                      <label>Valor total</label>
+                      <input
+                        className="lanc-computed"
+                        readOnly
+                        tabIndex={-1}
+                        value={money(totalGastoForm(g))}
                       />
                     </div>
                     <button
@@ -1475,8 +1580,15 @@ function FormVenda({
           )}
 
           <div className="lanc-form-footer">
-            <div className="lanc-total">
-              Total <strong>{money(total)}</strong>
+            <div className="lanc-total-stack">
+              {incluirGastos && gastos.length > 0 ? (
+                <div className="lanc-custos">
+                  Custos <strong>{money(totalCustos)}</strong>
+                </div>
+              ) : null}
+              <div className="lanc-total">
+                Total <strong>{money(total)}</strong>
+              </div>
             </div>
             <button
               type="submit"
@@ -1486,17 +1598,19 @@ function FormVenda({
             >
               {salvando ? (
                 <>
-                  <Loader2 className="spin" size={16} /> Salvando…
+                  <Loader2 className="spin" size={16} /> Salvandoâ€¦
                 </>
               ) : editando ? (
-                'Salvar alterações'
+                'Salvar alteraÃ§Ãµes'
               ) : (
                 'Confirmar venda'
               )}
             </button>
           </div>
 
-          {erro && <p className="lanc-error">{erro}</p>}
+          {erro && !isErroRotaCoresCatalogo(erro) && (
+            <p className="lanc-error">{erro}</p>
+          )}
         </form>
       )}
     </FormShell>
@@ -1517,12 +1631,12 @@ function FormVenda({
           aria-modal="true"
           aria-labelledby="lanc-edit-venda-title"
         >
-          <h3 id="lanc-edit-venda-title">Confirmar edição da venda</h3>
+          <h3 id="lanc-edit-venda-title">Confirmar ediÃ§Ã£o da venda</h3>
           <p>
-            Tem certeza que deseja salvar as alterações nesta venda?
+            Tem certeza que deseja salvar as alteraÃ§Ãµes nesta venda?
             {jaRecebido
-              ? ' Esta venda já tem recebimento marcado — o valor no caixa também será atualizado.'
-              : ' Itens, cliente, valores e previsão serão substituídos.'}
+              ? ' Esta venda jÃ¡ tem recebimento marcado â€” o valor no caixa tambÃ©m serÃ¡ atualizado.'
+              : ' Itens, cliente, valores e previsÃ£o serÃ£o substituÃ­dos.'}
           </p>
           <div className="df-form-actions">
             <button
@@ -1544,10 +1658,10 @@ function FormVenda({
             >
               {salvando ? (
                 <>
-                  <Loader2 className="spin" size={16} /> Salvando…
+                  <Loader2 className="spin" size={16} /> Salvandoâ€¦
                 </>
               ) : (
-                'Sim, salvar edição'
+                'Sim, salvar ediÃ§Ã£o'
               )}
             </button>
           </div>
@@ -1633,13 +1747,13 @@ function GerenciarVendas({
           id="gerenciar-busca"
           value={busca}
           onChange={(e) => setBusca(e.target.value)}
-          placeholder="Cliente, linha, observação…"
+          placeholder="Cliente, linha, observaÃ§Ã£oâ€¦"
         />
       </div>
 
       {loading ? (
         <p className="lanc-muted">
-          <Loader2 className="spin" size={16} /> Carregando vendas…
+          <Loader2 className="spin" size={16} /> Carregando vendasâ€¦
         </p>
       ) : itens.length === 0 ? (
         <p className="lanc-muted">Nenhuma venda encontrada.</p>
@@ -1649,11 +1763,11 @@ function GerenciarVendas({
             <li key={v.idVenda}>
               <div>
                 <strong>
-                  {v.dataVenda.split('-').reverse().join('/')} ·{' '}
+                  {v.dataVenda.split('-').reverse().join('/')} Â·{' '}
                   {money(v.valorTotal)}
                 </strong>
                 <span>
-                  {[v.cliente, v.resumo].filter(Boolean).join(' · ') ||
+                  {[v.cliente, v.resumo].filter(Boolean).join(' Â· ') ||
                     'Venda'}
                 </span>
               </div>
@@ -1690,15 +1804,15 @@ function GerenciarVendas({
             aria-modal="true"
             aria-labelledby="lanc-del-venda-title"
           >
-            <h3 id="lanc-del-venda-title">Confirmar exclusão</h3>
+            <h3 id="lanc-del-venda-title">Confirmar exclusÃ£o</h3>
             <p>
               Tem certeza que deseja excluir a venda de{' '}
               <strong>
-                {alvo.dataVenda.split('-').reverse().join('/')} ·{' '}
+                {alvo.dataVenda.split('-').reverse().join('/')} Â·{' '}
                 {money(alvo.valorTotal)}
               </strong>
-              {alvo.cliente ? ` (${alvo.cliente})` : ''}? Esta ação remove
-              itens, custos vinculados e a previsão/recebimento no caixa.
+              {alvo.cliente ? ` (${alvo.cliente})` : ''}? Esta aÃ§Ã£o remove
+              itens, custos vinculados e a previsÃ£o/recebimento no caixa.
             </p>
             <div className="df-form-actions">
               <button
@@ -1717,7 +1831,7 @@ function GerenciarVendas({
               >
                 {excluindo ? (
                   <>
-                    <Loader2 className="spin" size={16} /> Excluindo…
+                    <Loader2 className="spin" size={16} /> Excluindoâ€¦
                   </>
                 ) : (
                   'Sim, excluir venda'
@@ -1731,331 +1845,3 @@ function GerenciarVendas({
   )
 }
 
-function FormCusto({
-  onBack,
-  onDone,
-  erro,
-  setErro,
-}: {
-  onBack: () => void
-  onDone: (msg: string) => void
-  erro: string | null
-  setErro: (v: string | null) => void
-}) {
-  const [tipos, setTipos] = useState<string[]>([])
-  const [custos, setCustos] = useState<CatalogoCustoItem[]>([])
-  const [vendas, setVendas] = useState<VendaResumo[]>([])
-  const [tipo, setTipo] = useState('')
-  const [linhaCusto, setLinhaCusto] = useState('')
-  const [idCusto, setIdCusto] = useState('')
-  const [valor, setValor] = useState('')
-  const [associar, setAssociar] = useState(false)
-  const [idVenda, setIdVenda] = useState('')
-  const [buscaVenda, setBuscaVenda] = useState('')
-  const [itemLivre, setItemLivre] = useState('')
-  const [salvando, setSalvando] = useState(false)
-  const [loading, setLoading] = useState(true)
-
-  const isOutros = tipo.toUpperCase() === 'OUTROS'
-
-  useEffect(() => {
-    listarTiposCustoCatalogo()
-      .then((res) => {
-        setTipos(ordenarTiposCusto(res.itens.map((i) => i.tipoCusto)))
-      })
-      .catch((e) =>
-        setErro(e instanceof Error ? e.message : 'Erro ao carregar tipos'),
-      )
-      .finally(() => setLoading(false))
-  }, [setErro])
-
-  const [linhasCustoOpts, setLinhasCustoOpts] = useState<string[]>([])
-
-  useEffect(() => {
-    if (!tipo) {
-      setCustos([])
-      setLinhasCustoOpts([])
-      setLinhaCusto('')
-      setIdCusto('')
-      setItemLivre('')
-      return
-    }
-    setLinhaCusto('')
-    setIdCusto('')
-    setItemLivre('')
-    setCustos([])
-    listarLinhasCustoCatalogo(tipo)
-      .then((res) => {
-        const linhas = res.itens.map((i) => i.linha)
-        setLinhasCustoOpts(linhas)
-        // Sem linha no catálogo: carrega itens só pelo tipo
-        if (linhas.length === 0) {
-          return listarCustosCatalogo({ tipoCusto: tipo }).then((c) =>
-            setCustos(c.itens),
-          )
-        }
-      })
-      .catch((e) =>
-        setErro(e instanceof Error ? e.message : 'Erro ao carregar linhas'),
-      )
-  }, [tipo, setErro])
-
-  useEffect(() => {
-    if (!isOutros || linhasCustoOpts.length === 0) return
-    const geral =
-      linhasCustoOpts.find((l) => l.toUpperCase() === 'GERAL') ??
-      linhasCustoOpts[0]
-    if (linhaCusto !== geral) setLinhaCusto(geral)
-  }, [isOutros, linhasCustoOpts, linhaCusto])
-
-  useEffect(() => {
-    if (!tipo || !linhaCusto) {
-      if (!tipo || linhasCustoOpts.length > 0) {
-        if (!linhaCusto) setCustos([])
-      }
-      setIdCusto('')
-      return
-    }
-    setIdCusto('')
-    listarCustosCatalogo({ tipoCusto: tipo, linha: linhaCusto })
-      .then((res) => setCustos(res.itens))
-      .catch((e) =>
-        setErro(e instanceof Error ? e.message : 'Erro ao carregar custos'),
-      )
-  }, [tipo, linhaCusto, linhasCustoOpts.length, setErro])
-
-  const itensCustoOpts = custos
-
-  useEffect(() => {
-    if (!associar) return
-    const t = setTimeout(() => {
-      listarVendasLancamento(buscaVenda)
-        .then((res) => setVendas(res.itens))
-        .catch((e) =>
-          setErro(e instanceof Error ? e.message : 'Erro ao listar vendas'),
-        )
-    }, 250)
-    return () => clearTimeout(t)
-  }, [associar, buscaVenda, setErro])
-
-  const escolhido = custos.find((c) => String(c.idCusto) === idCusto)
-  const itemCatalogo = isOutros ? custos[0] : escolhido
-  const previewList = [
-    {
-      key: 'custo-preview',
-      kind: [tipo, isOutros ? itemLivre : itemCatalogo?.descricao]
-        .filter(Boolean)
-        .join(' ') || 'VIDRO',
-      label: isOutros
-        ? itemLivre.trim() || 'Descreva o custo'
-        : itemCatalogo?.rotulo || tipo || 'Selecione um custo',
-    },
-  ]
-
-  const salvar = async (e: FormEvent) => {
-    e.preventDefault()
-    setErro(null)
-    if (!itemCatalogo) {
-      setErro(isOutros ? 'Selecione o tipo Outros' : 'Selecione o item de custo')
-      return
-    }
-    const descricao = isOutros ? itemLivre.trim() : itemCatalogo.descricao
-    if (isOutros && !descricao) {
-      setErro('Descreva o item de custo')
-      return
-    }
-    const v = Number(valor.replace(',', '.'))
-    if (!(v > 0)) {
-      setErro('Informe um valor válido')
-      return
-    }
-    if (associar && !idVenda) {
-      setErro('Selecione a venda para associar')
-      return
-    }
-
-    setSalvando(true)
-    try {
-      const res = await criarCustoLancamento({
-        idCustoCatalogo: itemCatalogo.idCusto,
-        descricao,
-        tipoCusto: itemCatalogo.tipoCusto || tipo,
-        espessura: itemCatalogo.espessura,
-        linha: isOutros ? 'GERAL' : itemCatalogo.linha,
-        valor: v,
-        associadoAVenda: associar,
-        idVenda: associar ? idVenda : undefined,
-      })
-      onDone(res.mensagem)
-    } catch (cause) {
-      setErro(cause instanceof Error ? cause.message : 'Falha ao salvar custo')
-    } finally {
-      setSalvando(false)
-    }
-  }
-
-  return (
-    <FormShell
-      title="Novo custo"
-      tone="cost"
-      onBack={onBack}
-      previews={previewList}
-    >
-      {loading ? (
-        <p className="lanc-muted">
-          <Loader2 className="spin" size={16} /> Carregando…
-        </p>
-      ) : (
-        <form className="lanc-form-grid" onSubmit={(e) => void salvar(e)}>
-          <div className="lanc-fields-row">
-            <div className="field">
-              <label htmlFor="tipo-custo">1. Tipo de custo</label>
-              <SearchableSelect
-                id="tipo-custo"
-                value={tipo}
-                required
-                placeholder="Busque o tipo…"
-                options={tipos.map((t) => ({ value: t, label: t }))}
-                onChange={setTipo}
-              />
-            </div>
-
-            {linhasCustoOpts.length > 0 && !isOutros && (
-              <div className="field">
-                <label htmlFor="linha-custo">2. Linha</label>
-                <SearchableSelect
-                  id="linha-custo"
-                  value={linhaCusto}
-                  required
-                  disabled={!tipo}
-                  placeholder={tipo ? 'Busque a linha…' : 'Escolha o tipo'}
-                  options={linhasCustoOpts.map((l) => ({ value: l, label: l }))}
-                  onChange={(linha) => {
-                    setLinhaCusto(linha)
-                    setIdCusto('')
-                  }}
-                />
-              </div>
-            )}
-
-            <div className="field grow">
-              <label htmlFor="item-custo">
-                {isOutros || linhasCustoOpts.length === 0 ? '2. Item' : '3. Item'}
-              </label>
-              {isOutros ? (
-                <input
-                  id="item-custo"
-                  value={itemLivre}
-                  onChange={(e) => setItemLivre(e.target.value)}
-                  placeholder="Digite o item (ex.: café da manhã na obra)"
-                  required
-                />
-              ) : (
-                <SearchableSelect
-                  id="item-custo"
-                  value={idCusto}
-                  required
-                  disabled={
-                    !tipo || (linhasCustoOpts.length > 0 && !linhaCusto)
-                  }
-                  placeholder={
-                    !tipo
-                      ? 'Escolha o tipo'
-                      : linhasCustoOpts.length > 0 && !linhaCusto
-                        ? 'Escolha a linha'
-                        : 'Busque o item…'
-                  }
-                  options={itensCustoOpts.map((c) => ({
-                    value: String(c.idCusto),
-                    label: c.rotulo,
-                  }))}
-                  onChange={setIdCusto}
-                />
-              )}
-            </div>
-          </div>
-
-          <div className="lanc-fields-row compact">
-            <div className="field">
-              <label htmlFor="valor-custo">Valor (R$)</label>
-              <input
-                id="valor-custo"
-                inputMode="decimal"
-                placeholder="0,00"
-                value={valor}
-                onChange={(e) => setValor(e.target.value)}
-                required
-              />
-            </div>
-          </div>
-
-          <label className="lanc-check">
-            <input
-              type="checkbox"
-              checked={associar}
-              onChange={(e) => {
-                setAssociar(e.target.checked)
-                if (!e.target.checked) setIdVenda('')
-              }}
-            />
-            Este custo está associado a uma venda
-          </label>
-
-          {associar ? (
-            <fieldset className="lanc-fieldset soft">
-              <legend>Venda</legend>
-              <div className="field">
-                <label htmlFor="busca-venda">Pesquisar</label>
-                <input
-                  id="busca-venda"
-                  value={buscaVenda}
-                  onChange={(e) => setBuscaVenda(e.target.value)}
-                  placeholder="Cliente, linha, observação…"
-                />
-              </div>
-              <div className="field">
-                <label htmlFor="venda-sel">Selecionar venda</label>
-                <SearchableSelect
-                  id="venda-sel"
-                  value={idVenda}
-                  required={associar}
-                  placeholder="Busque a venda…"
-                  options={vendas.map((v) => ({
-                    value: v.idVenda,
-                    label:
-                      v.rotulo ||
-                      [
-                        v.dataVenda.split('-').reverse().join('/'),
-                        money(v.valorTotal),
-                        v.cliente,
-                        v.resumo,
-                      ]
-                        .filter(Boolean)
-                        .join(' · '),
-                  }))}
-                  onChange={setIdVenda}
-                />
-              </div>
-            </fieldset>
-          ) : (
-            <p className="lanc-muted">Sem associação → custo vai para estoque.</p>
-          )}
-
-          <div className="lanc-form-footer">
-            <button type="submit" className="btn btn-accent" disabled={salvando}>
-              {salvando ? (
-                <>
-                  <Loader2 className="spin" size={16} /> Salvando…
-                </>
-              ) : (
-                'Confirmar custo'
-              )}
-            </button>
-          </div>
-
-          {erro && <p className="lanc-error">{erro}</p>}
-        </form>
-      )}
-    </FormShell>
-  )
-}

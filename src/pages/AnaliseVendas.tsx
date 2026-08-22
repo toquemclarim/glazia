@@ -586,7 +586,13 @@ export function AnaliseVendas() {
                           {item.gastos.map((g, idx) => (
                             <li key={`${item.idVendaItem}-${idx}`}>
                               <span>{g.descricao}</span>
-                              <span>{formatCurrency(g.valor)}</span>
+                              <span className="av-gasto-valores">
+                                <small>
+                                  {(g.quantidade ?? 1).toLocaleString('pt-BR')}{' '}
+                                  × {formatCurrency(g.valorUnitario ?? g.valor)}
+                                </small>
+                                <strong>{formatCurrency(g.valor)}</strong>
+                              </span>
                             </li>
                           ))}
                         </ul>

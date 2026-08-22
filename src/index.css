@@ -2530,8 +2530,12 @@ table.data tr:hover td {
 }
 
 .lanc-fields-row.compact {
-  grid-template-columns: repeat(2, minmax(0, 1fr)) auto;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   align-items: end;
+}
+
+.lanc-gasto-block .lanc-fields-row.compact {
+  grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
 }
 
 .lanc-fields-row .field.grow {
@@ -2601,6 +2605,28 @@ table.data tr:hover td {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
+}
+
+.lanc-total-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.lanc-custos {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.lanc-custos strong {
+  color: var(--text);
+  margin-left: 0.35rem;
+}
+
+.lanc-computed {
+  opacity: 0.9;
+  cursor: default;
+  background: color-mix(in srgb, var(--surface, #1a1a1a) 88%, var(--border) 12%);
 }
 
 .lanc-total {
@@ -2988,7 +3014,8 @@ table.data tr:hover td {
 
 @media (max-width: 900px) {
   .lanc-fields-row,
-  .lanc-fields-row.compact {
+  .lanc-fields-row.compact,
+  .lanc-gasto-block .lanc-fields-row.compact {
     grid-template-columns: 1fr;
   }
 
@@ -4284,6 +4311,55 @@ table.data tr:hover td {
 
 .analise-bloco-grid strong.warn {
   color: var(--danger);
+}
+
+.analise-cv-split {
+  display: block;
+  margin-top: 0.25rem;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.analise-estoque-list {
+  margin-top: 1rem;
+  padding-top: 0.85rem;
+  border-top: 1px dashed var(--border);
+}
+
+.analise-estoque-title {
+  margin: 0 0 0.45rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.analise-estoque-list ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.analise-estoque-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+
+.analise-estoque-list li strong {
+  color: var(--text);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.analise-estoque-list small {
+  opacity: 0.85;
 }
 
 .analise-bloco-nota {
@@ -6274,6 +6350,19 @@ table.data tr:hover td {
   gap: 0.75rem;
   font-size: 0.82rem;
   color: var(--text-muted);
+}
+
+.av-gasto-valores {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.1rem;
+  text-align: right;
+}
+
+.av-gasto-valores strong {
+  color: var(--text);
+  font-weight: 600;
 }
 
 .av-margin {

@@ -292,6 +292,13 @@ export function Analise() {
             <div>
               <span>Custos variáveis</span>
               <strong>{formatCurrency(resultado?.custosVariaveis ?? 0)}</strong>
+              <small className="analise-cv-split">
+                Vendas{' '}
+                {formatCurrency(resultado?.custosVariaveisVenda ?? 0)}
+                {' · '}
+                Estoque{' '}
+                {formatCurrency(resultado?.custosVariaveisEstoque ?? 0)}
+              </small>
             </div>
             <div>
               <span>Custos fixos</span>
@@ -306,6 +313,26 @@ export function Analise() {
               </strong>
             </div>
           </div>
+          {(resultado?.custosEstoqueMes?.length ?? 0) > 0 && (
+            <div className="analise-estoque-list">
+              <p className="analise-estoque-title">Estoque no mês</p>
+              <ul>
+                {resultado!.custosEstoqueMes!.map((c) => (
+                  <li key={c.idCusto}>
+                    <span>
+                      {[c.tipoCusto, c.descricao].filter(Boolean).join(' · ')}
+                      <small>
+                        {' '}
+                        {c.quantidade.toLocaleString('pt-BR')} ×{' '}
+                        {formatCurrency(c.valorUnitario)}
+                      </small>
+                    </span>
+                    <strong>{formatCurrency(c.valor)}</strong>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
 
         <div

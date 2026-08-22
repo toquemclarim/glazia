@@ -62,6 +62,37 @@ export function coresDimPadrao(): Record<TipoCorPrincipal, string[]> {
   }
 }
 
+export function aplicarCoresCatalogo(
+  raw?: Partial<Record<TipoCorPrincipal, string[]>> | null,
+): Record<TipoCorPrincipal, string[]> {
+  const padrao = coresDimPadrao()
+  if (!raw) return padrao
+  const next = { ...padrao }
+  for (const tipo of TIPOS_COR) {
+    const list = (raw[tipo] ?? []).filter((c) => c && c !== COR_SENTINELA)
+    if (list.length > 0) next[tipo] = uniqSortCores(list)
+  }
+  return next
+}
+
+/** 404 da rota nova `/catalogo/cores` (PERFIL, VIDRO ou ACESSORIO). */
+export function isErroRotaCoresCatalogo(mensagem: string | null | undefined) {
+  return /catalogo\/cores/i.test(mensagem ?? '')
+}
+
+export function mensagemFalhaSalvarVenda(cause: unknown): string {
+  const msg = cause instanceof Error ? cause.message : ''
+  if (
+    isErroRotaCoresCatalogo(msg) ||
+    /tipoCorPrincipal|corPerfil|corVidro|corAcessorio|property \w+ should not exist/i.test(
+      msg,
+    )
+  ) {
+    return 'Não foi possível gravar as cores de perfil, vidro ou acessório deste item.'
+  }
+  return msg || 'Falha ao salvar venda'
+}
+
 /** GOLD / SUPREMA / 25 = perfil; TEMPERADO = vidro; demais perguntam. */
 export function politicaDaLinha(
   codigo: string | null | undefined,

@@ -14,6 +14,9 @@ import type {
   CriarUsuarioEquipePayload,
   CriarUsuarioEquipeResponse,
   CriarVendaPayload,
+  CustoEstoqueDetalhe,
+  CustoEstoqueResumo,
+  AtualizarCustoEstoquePayload,
   CustosFixos,
   DespesaFixaCadastro,
   EmpresaPlatform,
@@ -33,6 +36,7 @@ import type {
   VendaResumo,
   CalendarioVendas,
 } from '../types'
+import { coresDimPadrao } from '../utils/coresVenda'
 
 const API_URL =
   import.meta.env.VITE_API_URL?.replace(/\/$/, '') ??
@@ -363,14 +367,34 @@ export async function alterarAtivoUsuarioEquipe(
 /* —— Catálogo (dt_catalogo — só opções do CRUD) —— */
 
 export async function listarLinhasCatalogo() {
-  return apiRequest<{ itens: CatalogoLinhaItem[] }>('/catalogo/linhas')
+  return apiRequest<{
+    itens: CatalogoLinhaItem[]
+    cores?: Record<'PERFIL' | 'VIDRO' | 'ACESSORIO', string[]>
+  }>('/catalogo/linhas')
 }
 
 export async function listarCoresCatalogo(aplicavelA?: string) {
-  const qs = new URLSearchParams()
-  if (aplicavelA) qs.set('aplicavelA', aplicavelA)
-  const suffix = qs.toString() ? `?${qs.toString()}` : ''
-  return apiRequest<{ itens: CatalogoCorItem[] }>(`/catalogo/cores${suffix}`)
+  const fallback = (): { itens: CatalogoCorItem[] } => {
+    const tipo = (aplicavelA ?? '').trim().toUpperCase()
+    const padrao = coresDimPadrao()
+    const list =
+      tipo === 'PERFIL' || tipo === 'VIDRO' || tipo === 'ACESSORIO'
+        ? padrao[tipo]
+        : [...new Set([...padrao.PERFIL, ...padrao.VIDRO, ...padrao.ACESSORIO])]
+    return { itens: list.map((codigo) => ({ codigo, nome: codigo })) }
+  }
+  try {
+    const qs = new URLSearchParams()
+    if (aplicavelA) qs.set('aplicavelA', aplicavelA)
+    const suffix = qs.toString() ? `?${qs.toString()}` : ''
+    const res = await apiRequest<{ itens: CatalogoCorItem[] }>(
+      `/catalogo/cores${suffix}`,
+    )
+    if (res?.itens?.length) return res
+    return fallback()
+  } catch {
+    return fallback()
+  }
 }
 
 export async function listarLinhasCustoCatalogo(tipoCusto?: string) {
@@ -496,6 +520,48 @@ export async function criarCustoLancamento(payload: CriarCustoPayload) {
     method: 'POST',
     body: JSON.stringify(payload),
   })
+}
+
+export async function listarCustosEstoqueLancamento(opts?: {
+  q?: string
+  mes?: string
+}) {
+  const qs = new URLSearchParams()
+  if (opts?.q?.trim()) qs.set('q', opts.q.trim())
+  if (opts?.mes) qs.set('mes', opts.mes)
+  const suffix = qs.toString() ? `?${qs}` : ''
+  return apiRequest<{ mes: string; itens: CustoEstoqueResumo[] }>(
+    `/lancamentos/custos${suffix}`,
+  )
+}
+
+export async function obterCustoEstoqueLancamento(idCusto: string) {
+  return apiRequest<CustoEstoqueDetalhe>(
+    `/lancamentos/custos/${encodeURIComponent(idCusto)}`,
+  )
+}
+
+export async function atualizarCustoEstoqueLancamento(
+  idCusto: string,
+  payload: AtualizarCustoEstoquePayload,
+) {
+  return apiRequest<{
+    idCusto: string
+    quantidade: number
+    valorUnitario: number
+    valor: number
+    mensagem: string
+  }>(`/lancamentos/custos/${encodeURIComponent(idCusto)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function excluirCustoEstoqueLancamento(idCusto: string) {
+  return apiRequest<{ idCusto: string; mensagem: string }>(
+    `/lancamentos/custos/${encodeURIComponent(idCusto)}`,
+    { method: 'DELETE' },
+  )
 }
 
 /* —— Clientes —— */

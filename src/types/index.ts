@@ -89,12 +89,43 @@ export interface ResultadoMensal {
   mes: string
   faturamento: number
   custosVariaveis: number
+  /** Parte dos variáveis ligada a vendas. */
+  custosVariaveisVenda?: number
+  /** Parte dos variáveis de estoque (sem venda). */
+  custosVariaveisEstoque?: number
   custosFixos: number
   margemContribuicao: number
   margemPercentual: number
   lucroOperacional: number
   lucrativo: boolean
   deficitario: boolean
+  /** Lista compacta de custos de estoque do mês (Análise). */
+  custosEstoqueMes?: CustoEstoqueResumo[]
+}
+
+export interface CustoEstoqueResumo {
+  idCusto: string
+  dataCusto: string
+  tipoCusto: string | null
+  linha: string | null
+  descricao: string
+  quantidade: number
+  valorUnitario: number
+  valor: number
+  idCustoCatalogo?: number
+  rotulo?: string
+}
+
+export interface CustoEstoqueDetalhe extends CustoEstoqueResumo {
+  associadoAVenda: boolean
+  idVenda: string | null
+}
+
+export interface AtualizarCustoEstoquePayload {
+  quantidade: number
+  valorUnitario: number
+  valor?: number
+  descricao?: string
 }
 
 export interface ItemRentabilidade {
@@ -353,6 +384,8 @@ export interface VendaGastoDetalhe {
   tipoCusto: string | null
   linha: string | null
   valor: number
+  quantidade: number
+  valorUnitario: number
 }
 
 export interface VendaItemDetalhe {
@@ -414,7 +447,8 @@ export interface GastoLancamentoPayload {
   espessura?: string | null
   linha?: string | null
   valor: number
-  quantidade?: number
+  quantidade: number
+  valorUnitario: number
 }
 
 export interface ItemVendaPayload {
@@ -504,7 +538,8 @@ export interface CriarCustoPayload {
   espessura?: string | null
   linha?: string | null
   valor: number
-  quantidade?: number
+  quantidade: number
+  valorUnitario: number
   associadoAVenda: boolean
   idVenda?: string
   dataCusto?: string
