@@ -38,9 +38,10 @@ import type {
 } from '../types'
 import { coresDimPadrao } from '../utils/coresVenda'
 
+// Preferir `/api/v1` (proxy do Vite) em dev; string vazia não deve engolir o fallback.
 const API_URL =
-  import.meta.env.VITE_API_URL?.replace(/\/$/, '') ??
-  'http://localhost:3000/api/v1'
+  import.meta.env.VITE_API_URL?.replace(/\/$/, '') ||
+  (import.meta.env.DEV ? '/api/v1' : 'http://127.0.0.1:3000/api/v1')
 
 /** Evita `/catalogo/cores/?x=` — Fastify trata a barra extra como outra rota. */
 function joinApiUrl(path: string): string {
