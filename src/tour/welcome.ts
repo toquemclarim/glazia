@@ -90,7 +90,7 @@ export function buildWelcomeFlow(ctx: WelcomeContext): TourFlow {
       {
         selector: '[data-tour="lanc-venda"]',
         title: 'Lançar venda',
-        body: 'Escolha cliente → linha → produto → cor, valor e previsão de recebimento. É o coração da operação.',
+        body: 'Escolha cliente → linha → produto → cor principal (e, se quiser, vidro ou acessórios). É o coração da operação.',
         route: '/lancamentos',
         actions: ['reset-lancamentos'],
         placement: 'bottom',

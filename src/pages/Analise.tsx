@@ -21,6 +21,7 @@ import {
   formatMonthLabel,
   textoSemCodigoInterno,
 } from '../utils/format'
+import { rotuloTipoCor } from '../utils/coresVenda'
 
 const BRONZE = '#c9a06a'
 const BRONZE_DEEP = '#8a7355'
@@ -715,6 +716,53 @@ export function Analise() {
               </tbody>
             </table>
           </div>
+        </div>
+      </div>
+
+      <div className="glass" style={{ padding: '1.25rem' }}>
+        <div className="panel-header">
+          <h2>Cores informadas no mês</h2>
+        </div>
+        <p className="lanc-muted" style={{ marginTop: 0 }}>
+          Só entram itens em que a cor daquele tipo foi preenchida. Não
+          informado não aparece no mix.
+        </p>
+        <div className="table-wrap">
+          <table className="data">
+            <thead>
+              <tr>
+                <th>Tipo</th>
+                <th>Cor</th>
+                <th>Itens</th>
+                <th>Receita</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(rentabilidade?.mixPorSlot?.length ?? 0) === 0 ? (
+                <tr>
+                  <td
+                    colSpan={4}
+                    style={{ textAlign: 'center', color: 'var(--text-muted)' }}
+                  >
+                    Sem cores lançadas neste mês
+                  </td>
+                </tr>
+              ) : (
+                rentabilidade?.mixPorSlot?.map((item) => (
+                  <tr key={`${item.slot}-${item.cor}`}>
+                    <td style={{ fontWeight: 600 }}>
+                      {rotuloTipoCor(item.slot)}
+                    </td>
+                    <td>{item.cor}</td>
+                    <td>{item.qtdItens}</td>
+                    <td style={{ color: 'var(--success)' }}>
+                      {formatCurrency(item.receita)}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
 

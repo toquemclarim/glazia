@@ -68,15 +68,15 @@ export function Layout({ children }: { children: ReactNode }) {
       badge?: string
     }> = [{ path: '/home', label: 'Início', icon: House }]
     if (podeAnalisar) {
-      items.push({ path: '/analise', label: 'Análise', icon: BarChart3 })
-    }
-    if (podeAnalisar || podeOperar) {
-      items.push({
-        path: '/analise-vendas',
-        label: 'Análise de vendas',
-        icon: ScanSearch,
-        badge: 'Novidade',
-      })
+      items.push(
+        { path: '/analise', label: 'Análise', icon: BarChart3 },
+        {
+          path: '/analise-vendas',
+          label: 'Análise de vendas',
+          icon: ScanSearch,
+          badge: 'Novidade',
+        },
+      )
     }
     if (podeOperar) {
       items.push(

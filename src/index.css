@@ -2395,6 +2395,133 @@ table.data tr:hover td {
   color: var(--text-muted);
 }
 
+.lanc-item-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0.15rem 0 0.55rem;
+}
+
+.lanc-cor-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, transparent);
+}
+
+.lanc-tipo-cor {
+  margin-top: 0.85rem;
+}
+
+.lanc-tipo-cor-label,
+.lanc-opt-cores-title {
+  margin: 0 0 0.45rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.lanc-tipo-cor-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.6rem;
+}
+
+.lanc-tipo-cor-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.2rem;
+  padding: 0.75rem 0.8rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--bg-elevated) 70%, transparent);
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+
+.lanc-tipo-cor-card strong {
+  font-size: 0.88rem;
+}
+
+.lanc-tipo-cor-card span {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  line-height: 1.3;
+}
+
+.lanc-tipo-cor-card:hover {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+}
+
+.lanc-tipo-cor-card.active {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent);
+  background: color-mix(in srgb, var(--accent) 10%, var(--bg-elevated));
+}
+
+.lanc-opt-cores {
+  margin-top: 1rem;
+  padding: 0.85rem 0.9rem;
+  border-radius: var(--radius);
+  border: 1px dashed color-mix(in srgb, var(--border) 80%, var(--accent));
+  background: color-mix(in srgb, var(--bg-elevated) 40%, transparent);
+}
+
+.lanc-opt-cores-hint {
+  margin: 0 0 0.75rem;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.lanc-opt-row + .lanc-opt-row {
+  margin-top: 0.7rem;
+  padding-top: 0.7rem;
+  border-top: 1px solid var(--border);
+}
+
+.lanc-opt-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-size: 0.86rem;
+  cursor: pointer;
+}
+
+.lanc-opt-toggle input {
+  width: 1.05rem;
+  height: 1.05rem;
+  accent-color: var(--accent);
+}
+
+.lanc-opt-select {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.5rem;
+  align-items: end;
+  margin-top: 0.5rem;
+}
+
+.lanc-opt-clear {
+  white-space: nowrap;
+  font-size: 0.78rem;
+}
+
+@media (max-width: 720px) {
+  .lanc-tipo-cor-grid,
+  .lanc-opt-select {
+    grid-template-columns: 1fr;
+  }
+}
+
 .lanc-fields-row {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

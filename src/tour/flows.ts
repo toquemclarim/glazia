@@ -28,7 +28,7 @@ export const TOUR_FLOWS: TourFlow[] = [
       {
         selector: '[data-tour="lanc-itens"]',
         title: 'Passo 3 · Itens do pedido',
-        body: 'Selecione linha → produto → cor (só combinações válidas do catálogo). Informe quantidade e valor unitário. Isso define a receita e a rentabilidade por linha.',
+        body: 'Selecione linha → produto → cor. Em GOLD, Suprema e 25 a cor é a do perfil; no temperado, a do vidro. Nas outras linhas, escolha se a principal é perfil, vidro ou acessórios. Vidro e acessórios extras são opcionais.',
         route: '/lancamentos',
         actions: ['open-venda'],
         placement: 'right',

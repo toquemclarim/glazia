@@ -2,6 +2,8 @@ import type {
   AtualizarClientePayload,
   AtualizarDespesaFixaPayload,
   CatalogoCustoItem,
+  CatalogoLinhaItem,
+  CatalogoCorItem,
   CatalogoProdutoItem,
   Cliente,
   ContaAVencer,
@@ -353,9 +355,14 @@ export async function alterarAtivoUsuarioEquipe(
 /* —— Catálogo (dt_catalogo — só opções do CRUD) —— */
 
 export async function listarLinhasCatalogo() {
-  return apiRequest<{ itens: Array<{ linha: string; quantidadeSkus: number }> }>(
-    '/catalogo/linhas',
-  )
+  return apiRequest<{ itens: CatalogoLinhaItem[] }>('/catalogo/linhas')
+}
+
+export async function listarCoresCatalogo(aplicavelA?: string) {
+  const qs = aplicavelA
+    ? `?${new URLSearchParams({ aplicavelA })}`
+    : ''
+  return apiRequest<{ itens: CatalogoCorItem[] }>(`/catalogo/cores${qs}`)
 }
 
 export async function listarLinhasCustoCatalogo(tipoCusto?: string) {

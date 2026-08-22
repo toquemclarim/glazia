@@ -16,6 +16,7 @@ import {
   obterVendaLancamento,
 } from '../services/api'
 import type { VendaDetalhe, VendaResumo } from '../types'
+import { rotuloCoresItem } from '../utils/coresVenda'
 import {
   capitalize,
   formatCurrency,
@@ -524,7 +525,7 @@ export function AnaliseVendas() {
                     item.temGastosLancados ?? item.gastos.length > 0
                   const v = vereditoMargem(margem, temGastos)
                   const barra = Math.max(0, Math.min(100, margem))
-                  const nome = [item.produto, item.cor].filter(Boolean).join(' · ')
+                  const nome = rotuloCoresItem(item)
                   return (
                     <article key={item.idVendaItem} className="av-item">
                       <header>

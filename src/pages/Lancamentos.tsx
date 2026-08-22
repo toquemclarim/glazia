@@ -1,6 +1,8 @@
 import {
   ArrowLeft,
   Check,
+  Frame,
+  Layers,
   Loader2,
   List,
   Minus,
@@ -9,6 +11,7 @@ import {
   Trash2,
   TrendingDown,
   TrendingUp,
+  Wrench,
   X,
 } from 'lucide-react'
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
@@ -18,6 +21,7 @@ import {
   criarVendaLancamento,
   excluirVendaLancamento,
   listarClientes,
+  listarCoresCatalogo,
   listarCustosCatalogo,
   listarLinhasCatalogo,
   listarLinhasCustoCatalogo,
@@ -36,6 +40,16 @@ import { ClienteFormModal } from '../components/ClienteFormModal'
 import { ItemPreview } from '../components/ItemPreview'
 import { SearchableSelect } from '../components/SearchableSelect'
 import { onTourAction } from '../tour/events'
+import {
+  COR_SENTINELA,
+  chipsCoresItem,
+  labelCorPrincipal,
+  perguntaOptIn,
+  rotuloTipoCor,
+  slotsExtras,
+  type PoliticaCorLinha,
+  type TipoCorPrincipal,
+} from '../utils/coresVenda'
 
 type Modo = null | 'venda' | 'custo' | 'gerenciar'
 
@@ -44,6 +58,13 @@ type ItemForm = {
   produto: string
   linha: string
   cor: string
+  tipoCorPrincipal: TipoCorPrincipal | ''
+  corPerfilExtra: string
+  corVidroExtra: string
+  corAcessorioExtra: string
+  informarPerfil: boolean
+  informarVidro: boolean
+  informarAcessorio: boolean
   quantidade: string
   valorUnitario: string
 }
@@ -96,10 +117,33 @@ function emptyItem(): ItemForm {
     produto: '',
     linha: '',
     cor: '',
+    tipoCorPrincipal: '',
+    corPerfilExtra: '',
+    corVidroExtra: '',
+    corAcessorioExtra: '',
+    informarPerfil: false,
+    informarVidro: false,
+    informarAcessorio: false,
     quantidade: '1',
     valorUnitario: '',
   }
 }
+
+const TIPO_COR_UI: Array<{
+  id: TipoCorPrincipal
+  label: string
+  hint: string
+  Icon: typeof Frame
+}> = [
+  { id: 'PERFIL', label: 'Perfil', hint: 'Acabamento do alumínio', Icon: Frame },
+  { id: 'VIDRO', label: 'Vidro', hint: 'Incolor, fumê, extra clear…', Icon: Layers },
+  {
+    id: 'ACESSORIO',
+    label: 'Acessórios',
+    hint: 'Ferragem, puxador, kit',
+    Icon: Wrench,
+  },
+]
 
 export function Lancamentos() {
   const [modo, setModo] = useState<Modo>(null)
@@ -336,6 +380,10 @@ function FormVenda({
 }) {
   const editando = Boolean(vendaId)
   const [linhasOpts, setLinhasOpts] = useState<string[]>([])
+  const [politicaPorLinha, setPoliticaPorLinha] = useState<
+    Record<string, PoliticaCorLinha>
+  >({})
+  const [coresDim, setCoresDim] = useState<Record<string, string[]>>({})
   /** Cache de SKUs por linha — carrega sob demanda (evita truncar o catálogo). */
   const [skusPorLinha, setSkusPorLinha] = useState<
     Record<string, CatalogoProdutoItem[]>
@@ -454,12 +502,25 @@ function FormVenda({
     let alive = true
     ;(async () => {
       try {
-        const [linhas, cli] = await Promise.all([
+        const [linhas, cli, perfil, vidro, acessorio] = await Promise.all([
           listarLinhasCatalogo(),
           listarClientes(),
+          listarCoresCatalogo('PERFIL'),
+          listarCoresCatalogo('VIDRO'),
+          listarCoresCatalogo('ACESSORIO'),
         ])
         if (!alive) return
         setLinhasOpts(linhas.itens.map((i) => i.linha))
+        setPoliticaPorLinha(
+          Object.fromEntries(
+            linhas.itens.map((i) => [i.linha, i.corPrincipal]),
+          ),
+        )
+        setCoresDim({
+          PERFIL: perfil.itens.map((c) => c.codigo),
+          VIDRO: vidro.itens.map((c) => c.codigo),
+          ACESSORIO: acessorio.itens.map((c) => c.codigo),
+        })
         setClientes(cli.itens.filter((c) => c.matricula !== '00000001'))
 
         if (!vendaId) return
@@ -477,11 +538,21 @@ function FormVenda({
 
         for (const item of det.itens) {
           const key = uid()
+          const tipo = (item.tipoCorPrincipal ?? 'PERFIL') as TipoCorPrincipal
           nextItens.push({
             key,
             linha: item.linha,
             produto: item.produto,
             cor: item.cor,
+            tipoCorPrincipal: tipo,
+            informarPerfil: Boolean(item.corPerfil) && tipo !== 'PERFIL',
+            informarVidro: Boolean(item.corVidro) && tipo !== 'VIDRO',
+            informarAcessorio:
+              Boolean(item.corAcessorio) && tipo !== 'ACESSORIO',
+            corPerfilExtra: tipo === 'PERFIL' ? '' : (item.corPerfil ?? ''),
+            corVidroExtra: tipo === 'VIDRO' ? '' : (item.corVidro ?? ''),
+            corAcessorioExtra:
+              tipo === 'ACESSORIO' ? '' : (item.corAcessorio ?? ''),
             quantidade: String(item.quantidade).replace('.', ','),
             valorUnitario: String(item.valorUnitario).replace('.', ','),
           })
@@ -573,22 +644,47 @@ function FormVenda({
       ...new Set((skusPorLinha[linha] ?? []).map((c) => c.produto)),
     ].sort((a, b) => a.localeCompare(b, 'pt-BR'))
 
-  const coresPara = (linha: string, produto: string) =>
-    [
+  const politicaDa = (linha: string): PoliticaCorLinha =>
+    politicaPorLinha[linha] ?? 'PERGUNTAR'
+
+  const tipoDoItem = (item: ItemForm): TipoCorPrincipal | '' => {
+    const politica = politicaDa(item.linha)
+    if (politica === 'PERFIL' || politica === 'VIDRO') return politica
+    return item.tipoCorPrincipal
+  }
+
+  const coresPara = (item: ItemForm) => {
+    const tipo = tipoDoItem(item)
+    const politica = politicaDa(item.linha)
+    if (politica === 'PERGUNTAR') {
+      if (!tipo) return []
+      return coresDim[tipo] ?? []
+    }
+    return [
       ...new Set(
-        (skusPorLinha[linha] ?? [])
-          .filter((c) => c.produto === produto)
+        (skusPorLinha[item.linha] ?? [])
+          .filter((c) => c.produto === item.produto && c.cor !== COR_SENTINELA)
           .map((c) => c.cor),
       ),
     ].sort((a, b) => a.localeCompare(b, 'pt-BR'))
+  }
 
-  const resolveSku = (item: ItemForm) =>
-    (skusPorLinha[item.linha] ?? []).find(
+  const coresOptIn = (tipo: TipoCorPrincipal) => coresDim[tipo] ?? []
+
+  const resolveSku = (item: ItemForm) => {
+    const lista = skusPorLinha[item.linha] ?? []
+    if (politicaDa(item.linha) === 'PERGUNTAR') {
+      return lista.find(
+        (c) => c.produto === item.produto && c.cor === COR_SENTINELA,
+      )
+    }
+    return lista.find(
       (c) =>
         c.linha === item.linha &&
         c.produto === item.produto &&
         c.cor === item.cor,
     )
+  }
 
   const custosDoGasto = (g: GastoForm) =>
     custosPorFiltro[chaveCusto(g.tipoCusto, g.linhaCusto)] ?? []
@@ -609,7 +705,23 @@ function FormVenda({
         `Item ${itens.findIndex((x) => x.key === i.key) + 1}`,
         i.linha,
         i.produto,
-        i.cor,
+        ...chipsCoresItem({
+          tipoCorPrincipal: tipoDoItem(i) || undefined,
+          cor: i.cor,
+          corPerfil: i.informarPerfil ? i.corPerfilExtra : i.tipoCorPrincipal === 'PERFIL' || tipoDoItem(i) === 'PERFIL' ? i.cor : '',
+          corVidro:
+            tipoDoItem(i) === 'VIDRO'
+              ? i.cor
+              : i.informarVidro
+                ? i.corVidroExtra
+                : '',
+          corAcessorio:
+            tipoDoItem(i) === 'ACESSORIO'
+              ? i.cor
+              : i.informarAcessorio
+                ? i.corAcessorioExtra
+                : '',
+        }).map((c) => `${rotuloTipoCor(c.tipo)} ${c.cor}`),
       ]
         .filter(Boolean)
         .join(' · '),
@@ -625,10 +737,27 @@ function FormVenda({
         if (item.key !== key) return item
         const next = { ...item, ...patch }
         if (patch.linha !== undefined) {
+          const politica = politicaDa(patch.linha)
           next.produto = ''
           next.cor = ''
+          next.tipoCorPrincipal =
+            politica === 'PERGUNTAR' ? '' : politica
+          next.informarPerfil = false
+          next.informarVidro = false
+          next.informarAcessorio = false
+          next.corPerfilExtra = ''
+          next.corVidroExtra = ''
+          next.corAcessorioExtra = ''
         } else if (patch.produto !== undefined) {
           next.cor = ''
+        } else if (patch.tipoCorPrincipal !== undefined) {
+          next.cor = ''
+          next.informarPerfil = false
+          next.informarVidro = false
+          next.informarAcessorio = false
+          next.corPerfilExtra = ''
+          next.corVidroExtra = ''
+          next.corAcessorioExtra = ''
         }
         return next
       }),
@@ -642,9 +771,32 @@ function FormVenda({
     const payloadItens = []
     for (const item of itens) {
       const sku = resolveSku(item)
-      if (!sku) {
-        setErro('Preencha linha, produto e cor em todos os itens')
+      const tipo = tipoDoItem(item)
+      if (!sku || !tipo || !item.cor) {
+        setErro(
+          politicaDa(item.linha) === 'PERGUNTAR'
+            ? 'Em cada item, escolha linha, produto, o tipo da cor principal e a cor'
+            : 'Preencha linha, produto e cor em todos os itens',
+        )
         return
+      }
+      for (const extra of slotsExtras(tipo)) {
+        const on =
+          extra === 'PERFIL'
+            ? item.informarPerfil
+            : extra === 'VIDRO'
+              ? item.informarVidro
+              : item.informarAcessorio
+        const val =
+          extra === 'PERFIL'
+            ? item.corPerfilExtra
+            : extra === 'VIDRO'
+              ? item.corVidroExtra
+              : item.corAcessorioExtra
+        if (on && !val) {
+          setErro(`Informe a ${labelCorPrincipal(extra).toLowerCase()} ou desmarque a opção`)
+          return
+        }
       }
       const quantidade = Number(item.quantidade.replace(',', '.'))
       const valorUnitario = Number(item.valorUnitario.replace(',', '.'))
@@ -686,7 +838,26 @@ function FormVenda({
         idProdutoCatalogo: sku.idProduto,
         linha: sku.linha,
         produto: sku.produto,
-        cor: sku.cor,
+        cor: item.cor,
+        tipoCorPrincipal: tipo,
+        corPerfil:
+          tipo === 'PERFIL'
+            ? item.cor
+            : item.informarPerfil
+              ? item.corPerfilExtra
+              : null,
+        corVidro:
+          tipo === 'VIDRO'
+            ? item.cor
+            : item.informarVidro
+              ? item.corVidroExtra
+              : null,
+        corAcessorio:
+          tipo === 'ACESSORIO'
+            ? item.cor
+            : item.informarAcessorio
+              ? item.corAcessorioExtra
+              : null,
         unidadeVenda: sku.unidadeVenda,
         quantidade,
         valorUnitario,
@@ -800,6 +971,36 @@ function FormVenda({
               data-tour={index === 0 ? 'lanc-itens' : undefined}
             >
               <legend>Item {index + 1}</legend>
+              {item.cor ? (
+                <div className="lanc-item-chips">
+                  {chipsCoresItem({
+                    tipoCorPrincipal: tipoDoItem(item) || undefined,
+                    cor: item.cor,
+                    corPerfil:
+                      tipoDoItem(item) === 'PERFIL'
+                        ? item.cor
+                        : item.informarPerfil
+                          ? item.corPerfilExtra
+                          : '',
+                    corVidro:
+                      tipoDoItem(item) === 'VIDRO'
+                        ? item.cor
+                        : item.informarVidro
+                          ? item.corVidroExtra
+                          : '',
+                    corAcessorio:
+                      tipoDoItem(item) === 'ACESSORIO'
+                        ? item.cor
+                        : item.informarAcessorio
+                          ? item.corAcessorioExtra
+                          : '',
+                  }).map((c) => (
+                    <span key={c.tipo} className="lanc-cor-chip">
+                      {rotuloTipoCor(c.tipo)} {c.cor}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
 
               <div className="lanc-fields-row">
                 <div className="field">
@@ -840,18 +1041,60 @@ function FormVenda({
                     onChange={(produto) => updateItem(item.key, { produto })}
                   />
                 </div>
+              </div>
 
+              {politicaDa(item.linha) === 'PERGUNTAR' && item.produto ? (
+                <div className="lanc-tipo-cor">
+                  <p className="lanc-tipo-cor-label">Qual é a cor principal?</p>
+                  <div className="lanc-tipo-cor-grid" role="radiogroup">
+                    {TIPO_COR_UI.map(({ id, label, hint, Icon }) => {
+                      const ativo = item.tipoCorPrincipal === id
+                      return (
+                        <button
+                          key={id}
+                          type="button"
+                          role="radio"
+                          aria-checked={ativo}
+                          className={`lanc-tipo-cor-card${ativo ? ' active' : ''}`}
+                          onClick={() =>
+                            updateItem(item.key, { tipoCorPrincipal: id })
+                          }
+                        >
+                          <Icon size={18} />
+                          <strong>{label}</strong>
+                          <span>{hint}</span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              ) : null}
+
+              <div className="lanc-fields-row">
                 <div className="field">
-                  <label htmlFor={`cor-${item.key}`}>3. Cor</label>
+                  <label htmlFor={`cor-${item.key}`}>
+                    {tipoDoItem(item)
+                      ? `3. ${labelCorPrincipal(tipoDoItem(item))}`
+                      : '3. Cor'}
+                  </label>
                   <SearchableSelect
                     id={`cor-${item.key}`}
                     value={item.cor}
                     required
-                    disabled={!item.produto}
-                    placeholder={
-                      item.produto ? 'Busque a cor…' : 'Escolha o produto'
+                    disabled={
+                      !item.produto ||
+                      (politicaDa(item.linha) === 'PERGUNTAR' &&
+                        !item.tipoCorPrincipal)
                     }
-                    options={coresPara(item.linha, item.produto).map((c) => ({
+                    placeholder={
+                      !item.produto
+                        ? 'Escolha o produto'
+                        : politicaDa(item.linha) === 'PERGUNTAR' &&
+                            !item.tipoCorPrincipal
+                          ? 'Escolha o tipo da cor'
+                          : 'Busque a cor…'
+                    }
+                    options={coresPara(item).map((c) => ({
                       value: c,
                       label: c,
                     }))}
@@ -859,6 +1102,118 @@ function FormVenda({
                   />
                 </div>
               </div>
+
+              {tipoDoItem(item) && item.produto ? (
+                <div className="lanc-opt-cores">
+                  <p className="lanc-opt-cores-title">Cores opcionais</p>
+                  <p className="lanc-opt-cores-hint">
+                    Informe só se quiser. O que ficar em branco entra como não
+                    informado na análise.
+                  </p>
+                  {slotsExtras(tipoDoItem(item) as TipoCorPrincipal).map(
+                    (slot) => {
+                      const ligado =
+                        slot === 'PERFIL'
+                          ? item.informarPerfil
+                          : slot === 'VIDRO'
+                            ? item.informarVidro
+                            : item.informarAcessorio
+                      const valor =
+                        slot === 'PERFIL'
+                          ? item.corPerfilExtra
+                          : slot === 'VIDRO'
+                            ? item.corVidroExtra
+                            : item.corAcessorioExtra
+                      return (
+                        <div key={slot} className="lanc-opt-row">
+                          <label className="lanc-opt-toggle">
+                            <input
+                              type="checkbox"
+                              checked={ligado}
+                              onChange={(e) => {
+                                const on = e.target.checked
+                                if (slot === 'PERFIL') {
+                                  updateItem(item.key, {
+                                    informarPerfil: on,
+                                    corPerfilExtra: on
+                                      ? item.corPerfilExtra
+                                      : '',
+                                  })
+                                } else if (slot === 'VIDRO') {
+                                  updateItem(item.key, {
+                                    informarVidro: on,
+                                    corVidroExtra: on ? item.corVidroExtra : '',
+                                  })
+                                } else {
+                                  updateItem(item.key, {
+                                    informarAcessorio: on,
+                                    corAcessorioExtra: on
+                                      ? item.corAcessorioExtra
+                                      : '',
+                                  })
+                                }
+                              }}
+                            />
+                            <span>{perguntaOptIn(slot)}</span>
+                          </label>
+                          {ligado ? (
+                            <div className="lanc-opt-select">
+                              <SearchableSelect
+                                id={`extra-${slot}-${item.key}`}
+                                value={valor}
+                                placeholder={`Busque a ${rotuloTipoCor(slot).toLowerCase()}…`}
+                                options={coresOptIn(slot).map((c) => ({
+                                  value: c,
+                                  label: c,
+                                }))}
+                                onChange={(cor) => {
+                                  if (slot === 'PERFIL') {
+                                    updateItem(item.key, {
+                                      corPerfilExtra: cor,
+                                    })
+                                  } else if (slot === 'VIDRO') {
+                                    updateItem(item.key, {
+                                      corVidroExtra: cor,
+                                    })
+                                  } else {
+                                    updateItem(item.key, {
+                                      corAcessorioExtra: cor,
+                                    })
+                                  }
+                                }}
+                              />
+                              <button
+                                type="button"
+                                className="btn-ghost lanc-opt-clear"
+                                onClick={() => {
+                                  if (slot === 'PERFIL') {
+                                    updateItem(item.key, {
+                                      informarPerfil: false,
+                                      corPerfilExtra: '',
+                                    })
+                                  } else if (slot === 'VIDRO') {
+                                    updateItem(item.key, {
+                                      informarVidro: false,
+                                      corVidroExtra: '',
+                                    })
+                                  } else {
+                                    updateItem(item.key, {
+                                      informarAcessorio: false,
+                                      corAcessorioExtra: '',
+                                    })
+                                  }
+                                }}
+                              >
+                                Não informar
+                              </button>
+                            </div>
+                          ) : null}
+                        </div>
+                      )
+                    },
+                  )}
+                </div>
+              ) : null}
 
               <div className="lanc-fields-row compact">
                 <div className="field">

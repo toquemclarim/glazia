@@ -116,6 +116,21 @@ export interface ItemRentabilidadeCliente {
   qtdVendas: number
 }
 
+export interface MixCorSlot {
+  slot: 'PERFIL' | 'VIDRO' | 'ACESSORIO'
+  cor: string
+  receita: number
+  quantidade: number
+  qtdItens: number
+}
+
+export interface MixCorTipo {
+  tipo: 'PERFIL' | 'VIDRO' | 'ACESSORIO'
+  receita: number
+  quantidade: number
+  qtdItens: number
+}
+
 export interface Rentabilidade {
   mes: string
   porProduto: ItemRentabilidade[]
@@ -126,6 +141,8 @@ export interface Rentabilidade {
     lucro: number
   }>
   porCliente?: ItemRentabilidadeCliente[]
+  mixPorTipo?: MixCorTipo[]
+  mixPorSlot?: MixCorSlot[]
   maisRentavel: ItemRentabilidade | null
   menosRentavel: ItemRentabilidade | null
 }
@@ -280,6 +297,17 @@ export interface QuantidadeProdutoResponse {
   }>
 }
 
+export interface CatalogoLinhaItem {
+  linha: string
+  quantidadeSkus: number
+  corPrincipal: 'PERFIL' | 'VIDRO' | 'PERGUNTAR'
+}
+
+export interface CatalogoCorItem {
+  codigo: string
+  nome: string
+}
+
 /* —— Catálogo (dt_catalogo) —— */
 export interface CatalogoProdutoItem {
   idProduto: number
@@ -333,6 +361,10 @@ export interface VendaItemDetalhe {
   linha: string
   produto: string
   cor: string
+  tipoCorPrincipal?: 'PERFIL' | 'VIDRO' | 'ACESSORIO'
+  corPerfil?: string | null
+  corVidro?: string | null
+  corAcessorio?: string | null
   unidadeVenda: string
   quantidade: number
   valorUnitario: number
@@ -390,6 +422,10 @@ export interface ItemVendaPayload {
   linha: string
   produto: string
   cor: string
+  tipoCorPrincipal?: 'PERFIL' | 'VIDRO' | 'ACESSORIO'
+  corPerfil?: string | null
+  corVidro?: string | null
+  corAcessorio?: string | null
   unidadeVenda?: string
   quantidade: number
   valorUnitario: number

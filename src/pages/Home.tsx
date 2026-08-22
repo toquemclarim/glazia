@@ -186,7 +186,7 @@ export function Home() {
         titulo: 'Análise de vendas',
         descricao: 'Pesquise ou escolha o dia e leia a margem de cada item.',
         icon: ScanSearch,
-        liberado: podeAnalisar || podeOperar,
+        liberado: podeAnalisar,
         novidade: true,
       },
       {
@@ -463,7 +463,7 @@ export function Home() {
               <span>
                 {liberado
                   ? descricao
-                  : path === '/analise'
+                  : path === '/analise' || path === '/analise-vendas'
                     ? 'Disponível para Diretor e Sócio.'
                     : path === '/despesas'
                       ? 'Disponível para Diretor.'

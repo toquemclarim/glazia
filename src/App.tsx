@@ -174,7 +174,7 @@ function AppRoutes() {
         <Route
           path="/analise-vendas"
           element={
-            <PrivateRoute allow={podeAnalisar || podeOperar}>
+            <PrivateRoute allow={podeAnalisar}>
               <AnaliseVendas />
             </PrivateRoute>
           }
