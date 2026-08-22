@@ -1,4 +1,4 @@
-﻿import {
+import {
   ArrowLeft,
   Check,
   Frame,
@@ -158,11 +158,11 @@ const TIPO_COR_UI: Array<{
   hint: string
   Icon: typeof Frame
 }> = [
-  { id: 'PERFIL', label: 'Perfil', hint: 'Acabamento do alumÃ­nio', Icon: Frame },
-  { id: 'VIDRO', label: 'Vidro', hint: 'Incolor, fumÃª, extra clearâ€¦', Icon: Layers },
+  { id: 'PERFIL', label: 'Perfil', hint: 'Acabamento do alumínio', Icon: Frame },
+  { id: 'VIDRO', label: 'Vidro', hint: 'Incolor, fumê, extra clear…', Icon: Layers },
   {
     id: 'ACESSORIO',
-    label: 'AcessÃ³rios',
+    label: 'Acessórios',
     hint: 'Ferragem, puxador, kit',
     Icon: Wrench,
   },
@@ -205,11 +205,11 @@ export function Lancamentos() {
         <>
           <header className="lanc-intro fade-up">
             <p className="section-title" style={{ marginBottom: '0.35rem' }}>
-              OperaÃ§Ã£o do dia
+              Operação do dia
             </p>
-            <h2 className="lanc-title">O que vocÃª quer lanÃ§ar?</h2>
+            <h2 className="lanc-title">O que você quer lançar?</h2>
             <p className="lanc-subtitle">
-              FormulÃ¡rios com menus do catÃ¡logo. Os fatos vÃ£o para o analytics.
+              Formulários com menus do catálogo. Os fatos vão para o analytics.
             </p>
           </header>
 
@@ -230,8 +230,8 @@ export function Lancamentos() {
                 <TrendingUp size={28} />
               </span>
               <span className="lanc-choice-copy">
-                <strong>LanÃ§ar venda</strong>
-                <span>Itens, valores e previsÃ£o de recebimento</span>
+                <strong>Lançar venda</strong>
+                <span>Itens, valores e previsão de recebimento</span>
               </span>
               <span className="lanc-choice-pulse plus" aria-hidden="true">
                 <Plus size={16} />
@@ -254,7 +254,7 @@ export function Lancamentos() {
                 <TrendingDown size={28} />
               </span>
               <span className="lanc-choice-copy">
-                <strong>LanÃ§ar custo</strong>
+                <strong>Lançar custo</strong>
                 <span>Estoque ou associado a uma venda</span>
               </span>
               <span className="lanc-choice-pulse minus" aria-hidden="true">
@@ -278,7 +278,7 @@ export function Lancamentos() {
               </span>
               <span className="lanc-choice-copy">
                 <strong>Gerenciar vendas</strong>
-                <span>Editar ou excluir lanÃ§amentos recentes</span>
+                <span>Editar ou excluir lançamentos recentes</span>
               </span>
             </button>
 
@@ -298,7 +298,7 @@ export function Lancamentos() {
               </span>
               <span className="lanc-choice-copy">
                 <strong>Gerenciar custos</strong>
-                <span>HistÃ³rico de custos de estoque (sem venda)</span>
+                <span>Histórico de custos de estoque (sem venda)</span>
               </span>
             </button>
           </div>
@@ -466,7 +466,7 @@ function FormVenda({
   const [coresDim, setCoresDim] = useState<Record<string, string[]>>(
     coresDimPadrao,
   )
-  /** Cache de SKUs por linha â€” carrega sob demanda (evita truncar o catÃ¡logo). */
+  /** Cache de SKUs por linha � carrega sob demanda (evita truncar o catálogo). */
   const [skusPorLinha, setSkusPorLinha] = useState<
     Record<string, CatalogoProdutoItem[]>
   >({})
@@ -707,7 +707,7 @@ function FormVenda({
       } catch (e) {
         if (alive) {
           const msg =
-            e instanceof Error ? e.message : 'Erro ao carregar catÃ¡logo/venda'
+            e instanceof Error ? e.message : 'Erro ao carregar catálogo/venda'
           if (!isErroRotaCoresCatalogo(msg)) setErro(msg)
         }
       } finally {
@@ -719,7 +719,7 @@ function FormVenda({
     }
   }, [setErro, vendaId])
 
-  /** Cascata canÃ´nica: Linha â†’ Produto â†’ Cor (dados da linha carregada). */
+  /** Cascata canônica: Linha �  Produto �  Cor (dados da linha carregada). */
   const produtosPara = (linha: string) =>
     [
       ...new Set((skusPorLinha[linha] ?? []).map((c) => c.produto)),
@@ -809,7 +809,7 @@ function FormVenda({
         }).map((c) => `${rotuloTipoCor(c.tipo)} ${c.cor}`),
       ]
         .filter(Boolean)
-        .join(' Â· '),
+        .join(' · '),
       index,
     }))
 
@@ -879,14 +879,14 @@ function FormVenda({
               ? item.corVidroExtra
               : item.corAcessorioExtra
         if (on && !val) {
-          setErro(`Informe a ${labelCorPrincipal(extra).toLowerCase()} ou desmarque a opÃ§Ã£o`)
+          setErro(`Informe a ${labelCorPrincipal(extra).toLowerCase()} ou desmarque a opção`)
           return
         }
       }
       const quantidade = Number(item.quantidade.replace(',', '.'))
       const valorUnitario = Number(item.valorUnitario.replace(',', '.'))
       if (!(quantidade > 0) || Number.isNaN(valorUnitario) || valorUnitario < 0) {
-        setErro('Quantidade e valor unitÃ¡rio invÃ¡lidos')
+        setErro('Quantidade e valor unitário inválidos')
         return
       }
 
@@ -915,7 +915,7 @@ function FormVenda({
           !(valor > 0)
         ) {
           setErro(
-            'Selecione o custo e informe quantidade e valor unitÃ¡rio em todos os gastos',
+            'Selecione o custo e informe quantidade e valor unitário em todos os gastos',
           )
           return
         }
@@ -968,7 +968,7 @@ function FormVenda({
     }
 
     if (!previsao) {
-      setErro('Informe a previsÃ£o de recebimento')
+      setErro('Informe a previsão de recebimento')
       return
     }
 
@@ -989,7 +989,7 @@ function FormVenda({
     try {
       const res = await criarVendaLancamento(payload)
       onDone(
-        `${res.mensagem} Â· ${money(res.valorTotal)} Â· ${res.qtdItens} item(ns)`,
+        `${res.mensagem} · ${money(res.valorTotal)} · ${res.qtdItens} item(ns)`,
       )
     } catch (cause) {
       setErro(mensagemFalhaSalvarVenda(cause))
@@ -1007,7 +1007,7 @@ function FormVenda({
       setConfirmEdit(false)
       setPendingPayload(null)
       onDone(
-        `${res.mensagem} Â· ${money(res.valorTotal)} Â· ${res.qtdItens} item(ns)`,
+        `${res.mensagem} · ${money(res.valorTotal)} · ${res.qtdItens} item(ns)`,
       )
     } catch (cause) {
       setErro(mensagemFalhaSalvarVenda(cause))
@@ -1026,7 +1026,7 @@ function FormVenda({
     >
       {loading ? (
         <p className="lanc-muted">
-          <Loader2 className="spin" size={16} /> Carregando catÃ¡logoâ€¦
+          <Loader2 className="spin" size={16} /> Carregando catálogo…
         </p>
       ) : (
         <form className="lanc-form-grid" onSubmit={(e) => void salvar(e)}>
@@ -1040,10 +1040,10 @@ function FormVenda({
                     id="venda-cliente"
                     value={idCliente}
                     required
-                    placeholder="Busque o clienteâ€¦"
+                    placeholder="Busque o cliente…"
                     options={clientes.map((c) => ({
                       value: c.matricula,
-                      label: `${c.matricula} Â· ${c.nome} (${c.tipoPessoa})`,
+                      label: `${c.matricula} · ${c.nome} (${c.tipoPessoa})`,
                     }))}
                     onChange={setIdCliente}
                   />
@@ -1104,13 +1104,13 @@ function FormVenda({
                     id={`linha-${item.key}`}
                     value={item.linha}
                     required
-                    placeholder="Busque a linhaâ€¦"
+                    placeholder="Busque a linha…"
                     options={linhasOpts.map((l) => ({ value: l, label: l }))}
                     onChange={(linha) => updateItem(item.key, { linha })}
                   />
                   {carregandoLinha === item.linha && (
                     <span className="lanc-muted" style={{ fontSize: '0.75rem' }}>
-                      Carregando produtosâ€¦
+                      Carregando produtos…
                     </span>
                   )}
                 </div>
@@ -1126,8 +1126,8 @@ function FormVenda({
                       !item.linha
                         ? 'Escolha a linha'
                         : !skusPorLinha[item.linha]
-                          ? 'Carregandoâ€¦'
-                          : 'Busque o produtoâ€¦'
+                          ? 'Carregando…'
+                          : 'Busque o produto…'
                     }
                     options={produtosPara(item.linha).map((p) => ({
                       value: p,
@@ -1140,7 +1140,7 @@ function FormVenda({
 
               {politicaDa(item.linha) === 'PERGUNTAR' && item.produto ? (
                 <div className="lanc-tipo-cor">
-                  <p className="lanc-tipo-cor-label">Qual Ã© a cor principal?</p>
+                  <p className="lanc-tipo-cor-label">Qual é a cor principal?</p>
                   <div className="lanc-tipo-cor-grid" role="radiogroup">
                     {TIPO_COR_UI.map(({ id, label, hint, Icon }) => {
                       const ativo = item.tipoCorPrincipal === id
@@ -1187,7 +1187,7 @@ function FormVenda({
                         : politicaDa(item.linha) === 'PERGUNTAR' &&
                             !item.tipoCorPrincipal
                           ? 'Escolha o tipo da cor'
-                          : 'Busque a corâ€¦'
+                          : 'Busque a cor…'
                     }
                     options={coresPara(item).map((c) => ({
                       value: c,
@@ -1202,8 +1202,8 @@ function FormVenda({
                 <div className="lanc-opt-cores">
                   <p className="lanc-opt-cores-title">Cores opcionais</p>
                   <p className="lanc-opt-cores-hint">
-                    Informe sÃ³ se quiser. O que ficar em branco entra como nÃ£o
-                    informado na anÃ¡lise.
+                    Informe só se quiser. O que ficar em branco entra como não
+                    informado na análise.
                   </p>
                   {slotsExtras(tipoDoItem(item) as TipoCorPrincipal).map(
                     (slot) => {
@@ -1256,7 +1256,7 @@ function FormVenda({
                               <SearchableSelect
                                 id={`extra-${slot}-${item.key}`}
                                 value={valor}
-                                placeholder={`Busque a ${rotuloTipoCor(slot).toLowerCase()}â€¦`}
+                                placeholder={`Busque a ${rotuloTipoCor(slot).toLowerCase()}…`}
                                 options={coresOptIn(slot).map((c) => ({
                                   value: c,
                                   label: c,
@@ -1299,7 +1299,7 @@ function FormVenda({
                                   }
                                 }}
                               >
-                                NÃ£o informar
+                                Não informar
                               </button>
                             </div>
                           ) : null}
@@ -1324,7 +1324,7 @@ function FormVenda({
                   />
                 </div>
                 <div className="field">
-                  <label htmlFor={`vu-${item.key}`}>Valor unitÃ¡rio (R$)</label>
+                  <label htmlFor={`vu-${item.key}`}>Valor unitário (R$)</label>
                   <input
                     id={`vu-${item.key}`}
                     inputMode="decimal"
@@ -1361,7 +1361,7 @@ function FormVenda({
 
           <div className="lanc-fields-row" data-tour="lanc-previsao">
             <div className="field">
-              <label htmlFor="previsao">PrevisÃ£o de recebimento</label>
+              <label htmlFor="previsao">Previsão de recebimento</label>
               <input
                 id="previsao"
                 type="date"
@@ -1371,12 +1371,12 @@ function FormVenda({
               />
             </div>
             <div className="field full">
-              <label htmlFor="obs-venda">ObservaÃ§Ã£o (opcional)</label>
+              <label htmlFor="obs-venda">Observação (opcional)</label>
               <input
                 id="obs-venda"
                 value={observacao}
                 onChange={(e) => setObservacao(e.target.value)}
-                placeholder="Obra, referÃªncia, observaÃ§Ãµesâ€¦"
+                placeholder="Obra, referência, observações…"
               />
             </div>
           </div>
@@ -1394,7 +1394,7 @@ function FormVenda({
                 void carregarTiposCusto()
               }}
             />
-            Incluir gastos nestes itens (custos variÃ¡veis atrelados Ã  venda e ao
+            Incluir gastos nestes itens (custos variáveis atrelados à venda e ao
             cliente)
           </label>
 
@@ -1416,7 +1416,7 @@ function FormVenda({
                         value={g.itemKey}
                         options={itens.map((i, idx) => ({
                           value: i.key,
-                          label: `Item ${idx + 1}${i.linha ? ` Â· ${i.linha}` : ''}${i.produto ? ` Â· ${i.produto}` : ''}`,
+                          label: `Item ${idx + 1}${i.linha ? ` · ${i.linha}` : ''}${i.produto ? ` · ${i.produto}` : ''}`,
                         }))}
                         onChange={(itemKey) =>
                           setGastos((prev) =>
@@ -1432,7 +1432,7 @@ function FormVenda({
                       <SearchableSelect
                         value={g.tipoCusto}
                         required={incluirGastos}
-                        placeholder="Busque o tipoâ€¦"
+                        placeholder="Busque o tipo…"
                         options={tiposCusto.map((t) => ({ value: t, label: t }))}
                         onChange={(tipo) => void aplicarTipoNoGasto(g.key, tipo)}
                       />
@@ -1443,7 +1443,7 @@ function FormVenda({
                         <SearchableSelect
                           value={g.linhaCusto}
                           required={incluirGastos}
-                          placeholder="Busque a linhaâ€¦"
+                          placeholder="Busque a linha…"
                           options={linhasTipo.map((l) => ({ value: l, label: l }))}
                           onChange={(linha) => {
                             setGastos((prev) =>
@@ -1488,7 +1488,7 @@ function FormVenda({
                               ? 'Escolha o tipo'
                               : linhasTipo.length > 1 && !g.linhaCusto
                                 ? 'Escolha a linha'
-                                : 'Busque o itemâ€¦'
+                                : 'Busque o item…'
                           }
                           options={itensCusto.map((c) => ({
                             value: String(c.idCusto),
@@ -1524,7 +1524,7 @@ function FormVenda({
                       />
                     </div>
                     <div className="field">
-                      <label>Valor unitÃ¡rio (R$)</label>
+                      <label>Valor unitário (R$)</label>
                       <input
                         inputMode="decimal"
                         placeholder="0,00"
@@ -1598,10 +1598,10 @@ function FormVenda({
             >
               {salvando ? (
                 <>
-                  <Loader2 className="spin" size={16} /> Salvandoâ€¦
+                  <Loader2 className="spin" size={16} /> Salvando…
                 </>
               ) : editando ? (
-                'Salvar alteraÃ§Ãµes'
+                'Salvar alterações'
               ) : (
                 'Confirmar venda'
               )}
@@ -1631,12 +1631,12 @@ function FormVenda({
           aria-modal="true"
           aria-labelledby="lanc-edit-venda-title"
         >
-          <h3 id="lanc-edit-venda-title">Confirmar ediÃ§Ã£o da venda</h3>
+          <h3 id="lanc-edit-venda-title">Confirmar edição da venda</h3>
           <p>
-            Tem certeza que deseja salvar as alteraÃ§Ãµes nesta venda?
+            Tem certeza que deseja salvar as alterações nesta venda?
             {jaRecebido
-              ? ' Esta venda jÃ¡ tem recebimento marcado â€” o valor no caixa tambÃ©m serÃ¡ atualizado.'
-              : ' Itens, cliente, valores e previsÃ£o serÃ£o substituÃ­dos.'}
+              ? ' Esta venda já tem recebimento marcado � o valor no caixa também será atualizado.'
+              : ' Itens, cliente, valores e previsão serão substituídos.'}
           </p>
           <div className="df-form-actions">
             <button
@@ -1658,10 +1658,10 @@ function FormVenda({
             >
               {salvando ? (
                 <>
-                  <Loader2 className="spin" size={16} /> Salvandoâ€¦
+                  <Loader2 className="spin" size={16} /> Salvando…
                 </>
               ) : (
-                'Sim, salvar ediÃ§Ã£o'
+                'Sim, salvar edição'
               )}
             </button>
           </div>
@@ -1747,13 +1747,13 @@ function GerenciarVendas({
           id="gerenciar-busca"
           value={busca}
           onChange={(e) => setBusca(e.target.value)}
-          placeholder="Cliente, linha, observaÃ§Ã£oâ€¦"
+          placeholder="Cliente, linha, observação…"
         />
       </div>
 
       {loading ? (
         <p className="lanc-muted">
-          <Loader2 className="spin" size={16} /> Carregando vendasâ€¦
+          <Loader2 className="spin" size={16} /> Carregando vendas…
         </p>
       ) : itens.length === 0 ? (
         <p className="lanc-muted">Nenhuma venda encontrada.</p>
@@ -1763,11 +1763,11 @@ function GerenciarVendas({
             <li key={v.idVenda}>
               <div>
                 <strong>
-                  {v.dataVenda.split('-').reverse().join('/')} Â·{' '}
+                  {v.dataVenda.split('-').reverse().join('/')} ·{' '}
                   {money(v.valorTotal)}
                 </strong>
                 <span>
-                  {[v.cliente, v.resumo].filter(Boolean).join(' Â· ') ||
+                  {[v.cliente, v.resumo].filter(Boolean).join(' · ') ||
                     'Venda'}
                 </span>
               </div>
@@ -1804,15 +1804,15 @@ function GerenciarVendas({
             aria-modal="true"
             aria-labelledby="lanc-del-venda-title"
           >
-            <h3 id="lanc-del-venda-title">Confirmar exclusÃ£o</h3>
+            <h3 id="lanc-del-venda-title">Confirmar exclusão</h3>
             <p>
               Tem certeza que deseja excluir a venda de{' '}
               <strong>
-                {alvo.dataVenda.split('-').reverse().join('/')} Â·{' '}
+                {alvo.dataVenda.split('-').reverse().join('/')} ·{' '}
                 {money(alvo.valorTotal)}
               </strong>
-              {alvo.cliente ? ` (${alvo.cliente})` : ''}? Esta aÃ§Ã£o remove
-              itens, custos vinculados e a previsÃ£o/recebimento no caixa.
+              {alvo.cliente ? ` (${alvo.cliente})` : ''}? Esta ação remove
+              itens, custos vinculados e a previsão/recebimento no caixa.
             </p>
             <div className="df-form-actions">
               <button
@@ -1831,7 +1831,7 @@ function GerenciarVendas({
               >
                 {excluindo ? (
                   <>
-                    <Loader2 className="spin" size={16} /> Excluindoâ€¦
+                    <Loader2 className="spin" size={16} /> Excluindo…
                   </>
                 ) : (
                   'Sim, excluir venda'
