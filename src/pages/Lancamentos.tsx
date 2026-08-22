@@ -502,12 +502,9 @@ function FormVenda({
     let alive = true
     ;(async () => {
       try {
-        const [linhas, cli, perfil, vidro, acessorio] = await Promise.all([
+        const [linhas, cli] = await Promise.all([
           listarLinhasCatalogo(),
           listarClientes(),
-          listarCoresCatalogo('PERFIL'),
-          listarCoresCatalogo('VIDRO'),
-          listarCoresCatalogo('ACESSORIO'),
         ])
         if (!alive) return
         setLinhasOpts(linhas.itens.map((i) => i.linha))
@@ -516,12 +513,28 @@ function FormVenda({
             linhas.itens.map((i) => [i.linha, i.corPrincipal]),
           ),
         )
-        setCoresDim({
-          PERFIL: perfil.itens.map((c) => c.codigo),
-          VIDRO: vidro.itens.map((c) => c.codigo),
-          ACESSORIO: acessorio.itens.map((c) => c.codigo),
-        })
         setClientes(cli.itens.filter((c) => c.matricula !== '00000001'))
+
+        try {
+          const [perfil, vidro, acessorio] = await Promise.all([
+            listarCoresCatalogo('PERFIL'),
+            listarCoresCatalogo('VIDRO'),
+            listarCoresCatalogo('ACESSORIO'),
+          ])
+          if (!alive) return
+          setCoresDim({
+            PERFIL: perfil.itens.map((c) => c.codigo),
+            VIDRO: vidro.itens.map((c) => c.codigo),
+            ACESSORIO: acessorio.itens.map((c) => c.codigo),
+          })
+        } catch (coresErr) {
+          if (!alive) return
+          setErro(
+            coresErr instanceof Error
+              ? coresErr.message
+              : 'Não foi possível carregar as cores de vidro e acessórios',
+          )
+        }
 
         if (!vendaId) return
 
