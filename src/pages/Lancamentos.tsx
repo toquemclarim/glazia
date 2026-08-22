@@ -1695,13 +1695,17 @@ function GerenciarVendas({
     let alive = true
     const t = window.setTimeout(() => {
       setLoading(true)
+      setErro(null)
       listarVendasLancamento(busca)
         .then((res) => {
-          if (alive) setItens(res.itens)
+          if (!alive) return
+          setItens(res.itens)
+          setErro(null)
         })
-        .catch((e) =>
-          setErro(e instanceof Error ? e.message : 'Erro ao listar vendas'),
-        )
+        .catch((e) => {
+          if (!alive) return
+          setErro(e instanceof Error ? e.message : 'Erro ao listar vendas')
+        })
         .finally(() => {
           if (alive) setLoading(false)
         })

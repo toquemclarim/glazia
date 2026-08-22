@@ -115,13 +115,22 @@ export function GerenciarCustos({
     let alive = true
     const t = window.setTimeout(() => {
       setLoading(true)
+      setErro(null)
       listarCustosEstoqueLancamento({ q: busca, mes })
         .then((res) => {
-          if (alive) setItens(res.itens)
+          if (!alive) return
+          setItens(res.itens)
+          setErro(null)
         })
-        .catch((e) =>
-          setErro(e instanceof Error ? e.message : 'Erro ao listar custos'),
-        )
+        .catch((e) => {
+          if (!alive) return
+          const raw = e instanceof Error ? e.message : 'Erro ao listar custos'
+          setErro(
+            /cannot get .*lancamentos\/custos/i.test(raw)
+              ? 'API sem a rota de custos. Reinicie o servidor (npm run start:dev) e atualize a página.'
+              : raw,
+          )
+        })
         .finally(() => {
           if (alive) setLoading(false)
         })
