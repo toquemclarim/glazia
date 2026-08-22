@@ -45,6 +45,7 @@ import {
   chipsCoresItem,
   labelCorPrincipal,
   perguntaOptIn,
+  politicaDaLinha,
   rotuloTipoCor,
   slotsExtras,
   type PoliticaCorLinha,
@@ -510,7 +511,10 @@ function FormVenda({
         setLinhasOpts(linhas.itens.map((i) => i.linha))
         setPoliticaPorLinha(
           Object.fromEntries(
-            linhas.itens.map((i) => [i.linha, i.corPrincipal]),
+            linhas.itens.map((i) => [
+              i.linha,
+              politicaDaLinha(i.linha, i.corPrincipal),
+            ]),
           ),
         )
         setClientes(cli.itens.filter((c) => c.matricula !== '00000001'))
@@ -658,7 +662,7 @@ function FormVenda({
     ].sort((a, b) => a.localeCompare(b, 'pt-BR'))
 
   const politicaDa = (linha: string): PoliticaCorLinha =>
-    politicaPorLinha[linha] ?? 'PERGUNTAR'
+    politicaPorLinha[linha] ?? politicaDaLinha(linha)
 
   const tipoDoItem = (item: ItemForm): TipoCorPrincipal | '' => {
     const politica = politicaDa(item.linha)

@@ -4,6 +4,19 @@ export type PoliticaCorLinha = TipoCorPrincipal | 'PERGUNTAR'
 
 export const COR_SENTINELA = 'GERAL'
 
+/** GOLD / SUPREMA / 25 = perfil; TEMPERADO = vidro; demais perguntam. */
+export function politicaDaLinha(
+  codigo: string | null | undefined,
+  stored?: string | null,
+): PoliticaCorLinha {
+  const linha = (codigo ?? '').trim().toUpperCase()
+  if (linha === 'TEMPERADO') return 'VIDRO'
+  if (linha === 'GOLD' || linha === 'SUPREMA' || linha === '25') return 'PERFIL'
+  const raw = (stored ?? '').trim().toUpperCase()
+  if (raw === 'PERFIL' || raw === 'VIDRO' || raw === 'PERGUNTAR') return raw
+  return 'PERGUNTAR'
+}
+
 export function rotuloTipoCor(tipo: string): string {
   if (tipo === 'VIDRO') return 'Vidro'
   if (tipo === 'ACESSORIO') return 'Acessórios'

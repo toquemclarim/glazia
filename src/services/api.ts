@@ -38,6 +38,14 @@ const API_URL =
   import.meta.env.VITE_API_URL?.replace(/\/$/, '') ??
   'http://localhost:3000/api/v1'
 
+/** Evita `/catalogo/cores/?x=` — Fastify trata a barra extra como outra rota. */
+function joinApiUrl(path: string): string {
+  const root = API_URL.replace(/\/+$/, '')
+  const [rawPath, query] = path.split('?')
+  const cleanPath = `/${(rawPath ?? '').replace(/^\/+|\/+$/g, '')}`
+  return query ? `${root}${cleanPath}?${query}` : `${root}${cleanPath}`
+}
+
 export const TOKEN_STORAGE_KEY = 'glazia-jwt-token'
 
 export function getAccessToken(): string | null {
@@ -77,7 +85,7 @@ async function apiRequest<T>(
 
   let response: Response
   try {
-    response = await fetch(`${API_URL}${path}`, {
+    response = await fetch(joinApiUrl(path), {
       ...init,
       headers,
     })
@@ -359,10 +367,10 @@ export async function listarLinhasCatalogo() {
 }
 
 export async function listarCoresCatalogo(aplicavelA?: string) {
-  const qs = aplicavelA
-    ? `?${new URLSearchParams({ aplicavelA })}`
-    : ''
-  return apiRequest<{ itens: CatalogoCorItem[] }>(`/catalogo/cores${qs}`)
+  const qs = new URLSearchParams()
+  if (aplicavelA) qs.set('aplicavelA', aplicavelA)
+  const suffix = qs.toString() ? `?${qs.toString()}` : ''
+  return apiRequest<{ itens: CatalogoCorItem[] }>(`/catalogo/cores${suffix}`)
 }
 
 export async function listarLinhasCustoCatalogo(tipoCusto?: string) {
