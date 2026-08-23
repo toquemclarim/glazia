@@ -3,6 +3,7 @@ import { Link, Navigate } from 'react-router-dom'
 import {
   ArrowRight,
   BarChart3,
+  ChevronDown,
   ClipboardList,
   Coins,
   FileSpreadsheet,
@@ -24,7 +25,8 @@ import { useApp } from '../context/AppContext'
 import { PLAN_COPY } from '../lib/plan'
 import './landing.css'
 
-/** Anima só o deslocamento — nunca opacity:0 (evita tela “vazia”). */
+/** Reveal progressivo. Nunca zera a opacidade — se o observer falhar, o
+ *  conteúdo continua legível. */
 function useRevealOnScroll(enabled: boolean) {
   useEffect(() => {
     if (!enabled) return
@@ -58,7 +60,7 @@ function useRevealOnScroll(enabled: boolean) {
   }, [enabled])
 }
 
-/** Três pilares do hero (glass cards) */
+/** Três pilares apresentados no fim do hero */
 const HERO_CARDS = [
   {
     icon: BarChart3,
@@ -179,18 +181,18 @@ function LogoMarkOnly({ className = '' }: { className?: string }) {
   )
 }
 
-function HeroHoloStage() {
+/** Palco do hero: figura da marca + instrumentos de vidro com dados do painel. */
+function HeroStage() {
   return (
-    <div className="lp-hero-stage" aria-hidden="true">
-      <div className="lp-hero-glow lp-hero-glow-a" />
-      <div className="lp-hero-glow lp-hero-glow-b" />
-      <div className="lp-hero-particles" />
+    <div className="lp-stage" aria-hidden="true">
+      <div className="lp-stage-light" />
+      <div className="lp-stage-grid" />
 
-      <div className="lp-holo lp-holo-kpi lp-holo-float-a">
-        <span className="lp-holo-label">Visão geral do mês</span>
+      <div className="lp-inst lp-inst-kpi lp-float-a">
+        <span className="lp-inst-label">Visão geral do mês</span>
         <strong>Receita total</strong>
         <em>+ R$ 5.808</em>
-        <div className="lp-holo-bars">
+        <div className="lp-inst-bars">
           <i style={{ height: '78%' }} />
           <i style={{ height: '42%' }} />
           <i style={{ height: '58%' }} />
@@ -198,32 +200,32 @@ function HeroHoloStage() {
         </div>
       </div>
 
-      <div className="lp-holo lp-holo-cash lp-holo-float-b">
-        <span className="lp-holo-label">Fluxo de caixa</span>
+      <div className="lp-inst lp-inst-cash lp-float-b">
+        <span className="lp-inst-label">Fluxo de caixa</span>
         <strong>Projetado</strong>
-        <div className="lp-holo-row">
+        <div className="lp-inst-row">
           <span>Recebido</span>
           <b>R$ 12.4k</b>
         </div>
-        <div className="lp-holo-row">
+        <div className="lp-inst-row">
           <span>Em aberto</span>
           <b>R$ 3.1k</b>
         </div>
       </div>
 
-      <div className="lp-holo lp-holo-mix lp-holo-float-c">
-        <span className="lp-holo-label">Custos por categoria</span>
-        <div className="lp-holo-chip">
+      <div className="lp-inst lp-inst-mix lp-float-c">
+        <span className="lp-inst-label">Custos por categoria</span>
+        <div className="lp-inst-track">
           <span>Vidro</span>
           <i style={{ width: '86%' }} />
         </div>
-        <div className="lp-holo-chip">
+        <div className="lp-inst-track">
           <span>Alumínio</span>
           <i style={{ width: '62%' }} />
         </div>
       </div>
 
-      <div className="lp-hero-figure">
+      <figure className="lp-stage-figure">
         <img
           src="/hero-vidraceiro-clear.png"
           alt=""
@@ -232,8 +234,7 @@ function HeroHoloStage() {
           loading="eager"
           decoding="async"
         />
-        <div className="lp-hero-tablet-glow" />
-      </div>
+      </figure>
     </div>
   )
 }
@@ -269,14 +270,14 @@ export function Landing() {
   if (usuario) return <Navigate to="/home" replace />
 
   return (
-    <div className="lp lp-light lp-glass">
-      <div className="lp-factory-bg" aria-hidden="true" />
+    <div className="lp lp-light">
+      <div className="lp-atmosphere" aria-hidden="true" />
       <a className="lp-skip" href="#conteudo">
         Ir para o conteúdo
       </a>
 
       <header className={`lp-nav${scrolled ? ' scrolled' : ''}`}>
-        <div className="lp-nav-inner lp-glass-panel">
+        <div className="lp-nav-inner">
           <a href="#topo" className="lp-brand" aria-label="Glazia — início">
             <LogoWordmark />
           </a>
@@ -310,12 +311,13 @@ export function Landing() {
 
       <main id="conteudo">
         <section id="topo" className="lp-hero">
-          <div className="lp-hero-shell lp-glass-panel lp-hero-in">
+          <div className="lp-hero-inner">
             <div className="lp-hero-grid">
-              <div className="lp-hero-copy">
+              <div className="lp-hero-copy lp-hero-in">
                 <p className="lp-kicker">Feito para vidraçarias e esquadrias</p>
                 <h1>
-                  Descubra para onde o dinheiro da sua vidraçaria está indo.
+                  Descubra <span className="lp-hl">para onde o dinheiro</span>{' '}
+                  da sua vidraçaria está indo.
                 </h1>
                 <p className="lp-hero-lead">
                   Controle financeiro simples e inteligente: resultado do mês,
@@ -334,6 +336,7 @@ export function Landing() {
                   </Link>
                 </div>
                 <p className="lp-micro">
+                  <ShieldCheck size={15} aria-hidden="true" />
                   Experimente gratuitamente durante 14 dias. Sem cartão de
                   crédito.
                 </p>
@@ -352,14 +355,14 @@ export function Landing() {
               <div
                 className="lp-hero-visual lp-hero-in-delay"
                 role="img"
-                aria-label="Profissional de vidraçaria com tablet e painéis holográficos de KPIs do Glazia"
+                aria-label="Profissional de vidraçaria com tablet e painéis de KPIs do Glazia"
               >
-                <HeroHoloStage />
+                <HeroStage />
               </div>
             </div>
 
-            <div className="lp-hero-cards" id="beneficios">
-              <div className="lp-hero-cards-head">
+            <div className="lp-capabilities" id="beneficios">
+              <div className="lp-capabilities-head" data-reveal>
                 <p className="lp-kicker">Benefícios</p>
                 <h2>Menos achismo. Mais decisão.</h2>
               </div>
@@ -367,10 +370,11 @@ export function Landing() {
                 {HERO_CARDS.map((card, i) => (
                   <li
                     key={card.title}
-                    className="lp-glass-card"
-                    style={{ animationDelay: `${0.15 + i * 0.08}s` }}
+                    className="lp-cap"
+                    data-reveal
+                    style={{ transitionDelay: `${i * 70}ms` }}
                   >
-                    <span className="lp-glass-card-icon" aria-hidden="true">
+                    <span className="lp-cap-icon" aria-hidden="true">
                       <card.icon size={22} strokeWidth={1.75} />
                     </span>
                     <h3>{card.title}</h3>
@@ -383,7 +387,7 @@ export function Landing() {
         </section>
 
         <section className="lp-section lp-assistant" id="assistente" data-reveal>
-          <div className="lp-assistant-shell lp-glass-panel">
+          <div className="lp-assistant-shell lp-dark-panel">
             <div className="lp-assistant-copy">
               <p className="lp-kicker">Assistente Glazia</p>
               <h2>Você pergunta sobre as finanças. Ele responde.</h2>
@@ -399,7 +403,10 @@ export function Landing() {
               </ul>
             </div>
 
-            <div className="lp-chat-mock" aria-label="Exemplo do assistente Glazia">
+            <figure className="lp-chat-mock">
+              <figcaption className="lp-visually-hidden">
+                Exemplo de conversa com o assistente Glazia
+              </figcaption>
               <header className="lp-chat-head">
                 <div className="lp-chat-head-brand">
                   <BrandLogo variant="mark" size="mark" tone="dark" />
@@ -456,24 +463,24 @@ export function Landing() {
 
               <footer className="lp-chat-foot">
                 <span>Perguntar de novo</span>
-                <div className="lp-chat-chips">
-                  <button type="button" tabIndex={-1}>
+                <div className="lp-chat-chips" aria-hidden="true">
+                  <span>
                     <BarChart3 size={14} /> Resumo do mês
-                  </button>
-                  <button type="button" tabIndex={-1}>
+                  </span>
+                  <span>
                     <TrendingUp size={14} /> Mais rentável
-                  </button>
-                  <button type="button" tabIndex={-1}>
+                  </span>
+                  <span>
                     <Info size={14} /> O que pago
-                  </button>
+                  </span>
                 </div>
               </footer>
-            </div>
+            </figure>
           </div>
         </section>
 
         <section className="lp-section lp-gains" data-reveal>
-          <div className="lp-gains-shell lp-glass-panel">
+          <div className="lp-gains-shell lp-solid-panel lp-lightline">
             <div className="lp-section-head">
               <p className="lp-kicker">Painel na oficina</p>
               <h2>Gráficos que mostram ganho de verdade</h2>
@@ -494,10 +501,10 @@ export function Landing() {
                 decoding="async"
               />
 
-              <div className="lp-float-chart lp-float-bars lp-holo-float-a">
-                <span className="lp-holo-label">Receita do mês</span>
+              <div className="lp-gfloat lp-gfloat-bars lp-float-a">
+                <span className="lp-inst-label">Receita do mês</span>
                 <strong>+ R$ 48.200</strong>
-                <div className="lp-holo-bars lp-gains-bars">
+                <div className="lp-inst-bars lp-gains-bars">
                   <i style={{ height: '55%' }} />
                   <i style={{ height: '72%' }} />
                   <i style={{ height: '48%' }} />
@@ -506,8 +513,8 @@ export function Landing() {
                 </div>
               </div>
 
-              <div className="lp-float-chart lp-float-pie lp-holo-float-b">
-                <span className="lp-holo-label">Margem por linha</span>
+              <div className="lp-gfloat lp-gfloat-pie lp-float-b">
+                <span className="lp-inst-label">Margem por linha</span>
                 <div className="lp-pie" aria-hidden="true">
                   <span className="lp-pie-center">
                     <b>62%</b>
@@ -527,8 +534,8 @@ export function Landing() {
                 </ul>
               </div>
 
-              <div className="lp-float-chart lp-float-gain lp-holo-float-c">
-                <span className="lp-holo-label">Lucro líquido</span>
+              <div className="lp-gfloat lp-gfloat-gain lp-float-c">
+                <span className="lp-inst-label">Lucro líquido</span>
                 <strong className="lp-gain-up">+ 38%</strong>
                 <p>vs. mês anterior · caixa no azul</p>
               </div>
@@ -537,7 +544,7 @@ export function Landing() {
         </section>
 
         <section className="lp-section lp-benefits">
-          <div className="lp-benefits-panel lp-glass-panel" data-reveal>
+          <div className="lp-benefits-panel lp-solid-panel" data-reveal>
             <div className="lp-section-head">
               <p className="lp-kicker">Na prática</p>
               <h2>Tudo que a oficina precisa acompanhar</h2>
@@ -553,7 +560,7 @@ export function Landing() {
                   data-reveal
                   style={{ transitionDelay: `${i * 45}ms` }}
                 >
-                  <span className="lp-benefit-icon">
+                  <span className="lp-benefit-icon" aria-hidden="true">
                     <item.icon size={22} strokeWidth={1.75} />
                   </span>
                   <div>
@@ -610,7 +617,7 @@ export function Landing() {
             </p>
             <div className="lp-diff">
               <div>
-                <Lock size={20} />
+                <Lock size={20} aria-hidden="true" />
                 <h3>Seus dados, sua empresa</h3>
                 <p>
                   Cada login enxerga só o tenant da sua vidraçaria. Sem misturar
@@ -618,7 +625,7 @@ export function Landing() {
                 </p>
               </div>
               <div>
-                <BarChart3 size={20} />
+                <BarChart3 size={20} aria-hidden="true" />
                 <h3>DRE e caixa lado a lado</h3>
                 <p>
                   Venda no mês não é dinheiro na mão. O Glazia mostra as duas
@@ -626,7 +633,7 @@ export function Landing() {
                 </p>
               </div>
               <div>
-                <Wallet size={20} />
+                <Wallet size={20} aria-hidden="true" />
                 <h3>Tudo em um só lugar</h3>
                 <p>
                   Lançamentos, clientes, despesas fixas, análise, exportação e
@@ -666,7 +673,7 @@ export function Landing() {
                 <li>Análise, custos, lançamentos e chat</li>
                 <li>Seus dados ficam salvos ao final</li>
               </ul>
-              <Link to="/criar-conta" className="btn btn-accent">
+              <Link to="/criar-conta" className="lp-btn lp-btn-metal">
                 Criar conta gratuitamente
               </Link>
             </article>
@@ -682,7 +689,7 @@ export function Landing() {
                     ))}
                   </ul>
                   <a
-                    className="btn btn-ghost"
+                    className="lp-btn lp-btn-outline"
                     href="https://wa.me/5571986868421?text=Ol%C3%A1!%20Quero%20conhecer%20os%20planos%20do%20Glazia"
                     target="_blank"
                     rel="noopener noreferrer"
@@ -695,8 +702,8 @@ export function Landing() {
           </div>
         </section>
 
-        <section className="lp-section">
-          <div className="lp-quote" data-reveal>
+        <section className="lp-section lp-quote-section">
+          <div className="lp-quote lp-dark-panel" data-reveal>
             <p>
               “Pela primeira vez consegui olhar o mês e saber se a obra que
               mais faturou também foi a que mais lucrou.”
@@ -713,17 +720,23 @@ export function Landing() {
           <div className="lp-faq">
             {FAQ.map((item, i) => {
               const open = faqOpen === i
+              const panelId = `lp-faq-panel-${i}`
               return (
                 <div key={item.q} className={`lp-faq-item${open ? ' open' : ''}`}>
                   <button
                     type="button"
                     aria-expanded={open}
+                    aria-controls={panelId}
                     onClick={() => setFaqOpen(open ? null : i)}
                   >
                     {item.q}
-                    <span aria-hidden="true">{open ? '−' : '+'}</span>
+                    <span className="lp-faq-sign" aria-hidden="true">
+                      <ChevronDown size={16} strokeWidth={2.25} />
+                    </span>
                   </button>
-                  {open && <p>{item.a}</p>}
+                  <p id={panelId} hidden={!open}>
+                    {item.a}
+                  </p>
                 </div>
               )
             })}
@@ -733,7 +746,7 @@ export function Landing() {
         <section id="contato" className="lp-final">
           <div className="lp-final-copy" data-reveal>
             <div className="lp-final-trust">
-              <ShieldCheck size={18} />
+              <ShieldCheck size={18} aria-hidden="true" />
               <span>14 dias grátis · sem cartão · suporte no WhatsApp</span>
             </div>
             <h2>
@@ -744,12 +757,15 @@ export function Landing() {
               cartão de crédito.
             </p>
             <div className="lp-hero-cta">
-              <Link to="/criar-conta" className="btn btn-accent lp-cta-main">
+              <Link
+                to="/criar-conta"
+                className="lp-btn lp-btn-metal lp-cta-main"
+              >
                 Criar conta gratuitamente
                 <ArrowRight size={18} />
               </Link>
               <a
-                className="btn btn-ghost"
+                className="lp-btn lp-btn-outline"
                 href="https://wa.me/5571986868421?text=Ol%C3%A1!%20Quero%20saber%20mais%20sobre%20o%20Glazia"
                 target="_blank"
                 rel="noopener noreferrer"
@@ -771,7 +787,7 @@ export function Landing() {
         </section>
 
         <section className="lp-section lp-clients" id="clientes" data-reveal>
-          <div className="lp-clients-shell lp-glass-panel">
+          <div className="lp-clients-shell lp-solid-panel lp-lightline">
             <div className="lp-clients-head">
               <p className="lp-kicker">Nossos clientes</p>
               <h2>Já tem vidraçaria no Glazia</h2>
@@ -806,7 +822,7 @@ export function Landing() {
         </section>
       </main>
 
-      <footer className="lp-footer lp-glass-panel">
+      <footer className="lp-footer">
         <LogoWordmark />
         <p>© {new Date().getFullYear()} Glazia. Controle financeiro para vidraçarias.</p>
         <div className="lp-footer-links">
