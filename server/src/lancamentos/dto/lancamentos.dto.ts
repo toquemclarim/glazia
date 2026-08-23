@@ -3,6 +3,7 @@ import {
   ArrayMinSize,
   IsArray,
   IsBoolean,
+  IsIn,
   IsNumber,
   IsOptional,
   IsString,
@@ -35,10 +36,13 @@ export class GastoItemDto {
   @Min(0.01)
   valor!: number;
 
-  @IsOptional()
   @IsNumber()
   @Min(0.0001)
-  quantidade?: number;
+  quantidade!: number;
+
+  @IsNumber()
+  @Min(0)
+  valorUnitario!: number;
 }
 
 export class ItemVendaDto {
@@ -53,6 +57,23 @@ export class ItemVendaDto {
 
   @IsString()
   cor!: string;
+
+  @IsOptional()
+  @IsString()
+  @IsIn(['PERFIL', 'VIDRO', 'ACESSORIO'])
+  tipoCorPrincipal?: string;
+
+  @IsOptional()
+  @IsString()
+  corPerfil?: string | null;
+
+  @IsOptional()
+  @IsString()
+  corVidro?: string | null;
+
+  @IsOptional()
+  @IsString()
+  corAcessorio?: string | null;
 
   @IsOptional()
   @IsString()
@@ -123,10 +144,13 @@ export class CriarCustoDto {
   @Min(0.01)
   valor!: number;
 
-  @IsOptional()
   @IsNumber()
   @Min(0.0001)
-  quantidade?: number;
+  quantidade!: number;
+
+  @IsNumber()
+  @Min(0)
+  valorUnitario!: number;
 
   @IsBoolean()
   associadoAVenda!: boolean;
@@ -161,6 +185,38 @@ export class CalendarioVendasQueryDto {
   @IsOptional()
   @Matches(/^\d{4}-\d{2}$/)
   mes?: string;
+}
+
+/** Custos de estoque (id_venda IS NULL). */
+export class ListarCustosEstoqueQueryDto {
+  @IsOptional()
+  @IsString()
+  q?: string;
+
+  /** Competência YYYY-MM (data_emissao_nf). Sem valor, mês vigente. */
+  @IsOptional()
+  @Matches(/^\d{4}-\d{2}$/)
+  mes?: string;
+}
+
+export class AtualizarCustoEstoqueDto {
+  @IsNumber()
+  @Min(0.0001)
+  quantidade!: number;
+
+  @IsNumber()
+  @Min(0)
+  valorUnitario!: number;
+
+  /** Total = quantidade × valorUnitario (servidor recalcula). */
+  @IsOptional()
+  @IsNumber()
+  @Min(0.01)
+  valor?: number;
+
+  @IsOptional()
+  @IsString()
+  descricao?: string;
 }
 
 /** Mesmo payload da criação — substitui itens/custos da venda. */

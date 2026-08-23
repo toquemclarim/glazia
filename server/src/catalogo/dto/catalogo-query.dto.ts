@@ -1,4 +1,4 @@
-import { IsOptional, IsString } from 'class-validator';
+import { IsIn, IsOptional, IsString } from 'class-validator';
 
 export class CatalogoProdutosQueryDto {
   @IsOptional()
@@ -30,4 +30,11 @@ export class CatalogoCustosQueryDto {
   @IsOptional()
   @IsString()
   idProduto?: string;
+}
+
+export class CatalogoCoresQueryDto {
+  @IsOptional()
+  @IsString()
+  @IsIn(['PERFIL', 'VIDRO', 'ACESSORIO', 'AMBOS'])
+  aplicavelA?: string;
 }

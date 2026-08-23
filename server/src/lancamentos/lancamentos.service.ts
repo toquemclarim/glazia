@@ -5,17 +5,27 @@ import {
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import type { AuthContext } from '../auth/auth-context';
-import { assertConsultaVendas, assertOperador } from '../auth/roles';
+import { assertAnalista, assertConsultaVendas, assertOperador } from '../auth/roles';
 import { DatabaseService, type Queryable } from '../database/database.service';
 import type {
+  AtualizarCustoEstoqueDto,
   AtualizarVendaDto,
   CalendarioVendasQueryDto,
   CriarCustoDto,
   CriarVendaDto,
   GastoItemDto,
   ItemVendaDto,
+  ListarCustosEstoqueQueryDto,
   ListarVendasQueryDto,
 } from './dto/lancamentos.dto';
+import {
+  COR_SENTINELA,
+  corPrincipalDoSlot,
+  politicaDaLinha,
+  slotsDoItem,
+  tipoEfetivo,
+  type TipoCorPrincipal,
+} from './cores-item';
 
 function todayIsoDate(): string {
   return new Date().toISOString().slice(0, 10);
@@ -28,6 +38,24 @@ function catalogProductId(idProdutoCatalogo: number): string {
 /** Insumo do catálogo consumido fora de uma venda (estoque ou custo avulso). */
 function catalogCostProductId(idCustoCatalogo: number): string {
   return `custo_cat_${idCustoCatalogo}`;
+}
+
+/** Quantidade × unitário, com total arredondado em 2 casas. */
+function valoresDoGasto(gasto: {
+  quantidade?: number;
+  valorUnitario?: number;
+  valor: number;
+}) {
+  const quantidade =
+    gasto.quantidade != null && Number(gasto.quantidade) > 0
+      ? Number(gasto.quantidade)
+      : 1;
+  const valorUnitario =
+    gasto.valorUnitario != null && Number.isFinite(Number(gasto.valorUnitario))
+      ? Number(gasto.valorUnitario)
+      : Number(gasto.valor) / quantidade;
+  const valorTotal = Math.round(quantidade * valorUnitario * 100) / 100;
+  return { quantidade, valorUnitario, valorTotal };
 }
 
 function parseCtlProductId(idProduto: string | null): number {
@@ -46,6 +74,22 @@ function parseCatCustoId(observacao: string | null): number | null {
 
 function likeContains(term: string): string {
   return `%${term.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+}
+
+function currentMonthLocal(): string {
+  const now = new Date();
+  const month = String(now.getUTCMonth() + 1).padStart(2, '0');
+  return `${now.getUTCFullYear()}-${month}`;
+}
+
+function monthRangeLocal(mes: string): { mesInicio: string; mesFim: string } {
+  const [year, month] = mes.split('-').map(Number);
+  const inicio = new Date(Date.UTC(year, month - 1, 1));
+  const fim = new Date(Date.UTC(year, month, 1));
+  return {
+    mesInicio: inicio.toISOString().slice(0, 10),
+    mesFim: fim.toISOString().slice(0, 10),
+  };
 }
 
 @Injectable()
@@ -171,7 +215,7 @@ export class LancamentosService {
   }
 
   async calendarioVendas(auth: AuthContext, query: CalendarioVendasQueryDto) {
-    assertConsultaVendas(auth);
+    assertAnalista(auth);
     const mes =
       query.mes?.trim() || new Date().toISOString().slice(0, 7);
     const vendas = this.db.table('fato_venda');
@@ -233,7 +277,11 @@ export class LancamentosService {
       );
     }
 
-    const dimProdutos = this.buildDimProdutoRows(auth, dto.itens);
+    const resolved = await this.resolverItensCatalogo(dto.itens);
+    const dimProdutos = this.buildDimProdutoRows(
+      auth,
+      resolved.map((r) => r.item),
+    );
     const vendaRow = {
       id_venda: idVenda,
       id_empresa: auth.empresaId,
@@ -250,11 +298,14 @@ export class LancamentosService {
       alterado_em: null,
     };
 
-    const itemRows = dto.itens.map((item) => {
+    const itemRows = resolved.map(({ item, slots }) => {
       const idVendaItem = `vit_${randomUUID().replace(/-/g, '')}`;
       const total = item.quantidade * item.valorUnitario;
       const gastos = item.gastos ?? [];
-      const custoTotal = gastos.reduce((a, g) => a + g.valor, 0);
+      const custoTotal = gastos.reduce(
+        (a, g) => a + valoresDoGasto(g).valorTotal,
+        0,
+      );
       return {
         idVendaItem,
         row: {
@@ -275,6 +326,7 @@ export class LancamentosService {
           id_usuario_alteracao: null,
           alterado_em: null,
           origem: 'CRM_LANCAMENTOS',
+          ...slots,
         },
         item,
       };
@@ -406,8 +458,12 @@ export class LancamentosService {
       valor_total_item: number | null;
       custo_total_estimado: number | null;
       produto: string | null;
-      cor: string | null;
+      cor_sku: string | null;
       unidade_venda: string | null;
+      tipo_cor_principal: string | null;
+      cor_perfil: string | null;
+      cor_vidro: string | null;
+      cor_acessorio: string | null;
     }>(
       `
       SELECT
@@ -419,8 +475,12 @@ export class LancamentosService {
         i.valor_total_item,
         i.custo_total_estimado,
         COALESCE(cp.produto, i.linha_produto) AS produto,
-        COALESCE(cp.cor, '') AS cor,
-        COALESCE(cp.unidade_venda, 'UN') AS unidade_venda
+        COALESCE(cp.cor, '') AS cor_sku,
+        COALESCE(cp.unidade_venda, 'UN') AS unidade_venda,
+        i.tipo_cor_principal,
+        i.cor_perfil,
+        i.cor_vidro,
+        i.cor_acessorio
       FROM ${itens} i
       LEFT JOIN ${catalogo} cp
         ON i.id_produto LIKE 'ctl_%'
@@ -434,12 +494,15 @@ export class LancamentosService {
     const custoRows = await this.db.query<{
       id_venda_item: string | null;
       valor_total_custo: number;
+      quantidade: number | null;
+      valor_unitario: number | null;
       observacao: string | null;
       tipo_custo: string | null;
       linha_produto: string | null;
     }>(
       `
-      SELECT id_venda_item, valor_total_custo, observacao, tipo_custo, linha_produto
+      SELECT id_venda_item, valor_total_custo, quantidade, valor_unitario,
+             observacao, tipo_custo, linha_produto
       FROM ${custos}
       WHERE id_empresa = @empresaId
         AND id_venda = @idVenda
@@ -475,6 +538,8 @@ export class LancamentosService {
         tipoCusto: string | null;
         linha: string | null;
         valor: number;
+        quantidade: number;
+        valorUnitario: number;
       }>
     >();
     for (const c of custoRows) {
@@ -483,12 +548,23 @@ export class LancamentosService {
       const descricao =
         c.observacao?.split(' | ')[0]?.trim() || 'Custo da venda';
       const list = gastosPorItem.get(c.id_venda_item) ?? [];
+      const valor = Number(c.valor_total_custo ?? 0);
+      const quantidade =
+        c.quantidade != null && Number(c.quantidade) > 0
+          ? Number(c.quantidade)
+          : 1;
+      const valorUnitario =
+        c.valor_unitario != null && Number.isFinite(Number(c.valor_unitario))
+          ? Number(c.valor_unitario)
+          : valor / quantidade;
       list.push({
         idCustoCatalogo: idCat ?? 0,
         descricao,
         tipoCusto: c.tipo_custo,
         linha: c.linha_produto,
-        valor: Number(c.valor_total_custo ?? 0),
+        valor,
+        quantidade,
+        valorUnitario,
       });
       gastosPorItem.set(c.id_venda_item, list);
     }
@@ -515,12 +591,23 @@ export class LancamentosService {
       const lucro = faturamento - gastosTotal;
       const margemPercentual =
         faturamento > 0 ? (lucro / faturamento) * 100 : 0;
+      const cor = corPrincipalDoSlot({
+        tipo: i.tipo_cor_principal,
+        corPerfil: i.cor_perfil,
+        corVidro: i.cor_vidro,
+        corAcessorio: i.cor_acessorio,
+        fallback: i.cor_sku,
+      });
       return {
         idVendaItem: i.id_venda_item,
         idProdutoCatalogo,
         linha: i.linha_produto ?? '',
         produto: i.produto ?? '',
-        cor: i.cor ?? '',
+        cor,
+        tipoCorPrincipal: i.tipo_cor_principal ?? 'PERFIL',
+        corPerfil: i.cor_perfil,
+        corVidro: i.cor_vidro,
+        corAcessorio: i.cor_acessorio,
         unidadeVenda: i.unidade_venda ?? 'UN',
         quantidade,
         valorUnitario,
@@ -595,12 +682,19 @@ export class LancamentosService {
       );
     }
 
-    const dimProdutos = this.buildDimProdutoRows(auth, dto.itens);
-    const itemRows = dto.itens.map((item) => {
+    const resolved = await this.resolverItensCatalogo(dto.itens);
+    const dimProdutos = this.buildDimProdutoRows(
+      auth,
+      resolved.map((r) => r.item),
+    );
+    const itemRows = resolved.map(({ item, slots }) => {
       const idVendaItem = `vit_${randomUUID().replace(/-/g, '')}`;
       const total = item.quantidade * item.valorUnitario;
       const gastos = item.gastos ?? [];
-      const custoTotal = gastos.reduce((a, g) => a + g.valor, 0);
+      const custoTotal = gastos.reduce(
+        (a, g) => a + valoresDoGasto(g).valorTotal,
+        0,
+      );
       return {
         idVendaItem,
         row: {
@@ -621,6 +715,7 @@ export class LancamentosService {
           id_usuario_alteracao: auth.userId,
           alterado_em: agora,
           origem: 'CRM_LANCAMENTOS',
+          ...slots,
         },
         item,
       };
@@ -834,6 +929,7 @@ export class LancamentosService {
         linha: dto.linha,
         valor: dto.valor,
         quantidade: dto.quantidade,
+        valorUnitario: dto.valorUnitario,
       },
       data: dataCusto,
       agora,
@@ -861,6 +957,244 @@ export class LancamentosService {
     };
   }
 
+  /** Custos avulsos (estoque): id_venda IS NULL. */
+  async listarCustosEstoque(
+    auth: AuthContext,
+    query: ListarCustosEstoqueQueryDto,
+  ) {
+    this.assertOperador(auth);
+    const custos = this.db.table('fato_custos_operacionais');
+    const mes = query.mes?.trim() || currentMonthLocal();
+    const { mesInicio, mesFim } = monthRangeLocal(mes);
+    const search = query.q?.trim() ?? '';
+    const params: Record<string, unknown> = {
+      empresaId: auth.empresaId,
+      mesInicio,
+      mesFim,
+    };
+
+    let searchSql = '';
+    if (search) {
+      params.q = likeContains(search);
+      searchSql = `
+        AND (
+          COALESCE(c.observacao, '') ILIKE @q
+          OR COALESCE(c.tipo_custo, '') ILIKE @q
+          OR COALESCE(c.linha_produto, '') ILIKE @q
+        )
+      `;
+    }
+
+    const rows = await this.db.query<{
+      id_custo: string;
+      data_emissao_nf: string | null;
+      tipo_custo: string | null;
+      linha_produto: string | null;
+      quantidade: number | null;
+      valor_unitario: number | null;
+      valor_total_custo: number;
+      observacao: string | null;
+    }>(
+      `
+      SELECT
+        c.id_custo,
+        c.data_emissao_nf,
+        c.tipo_custo,
+        c.linha_produto,
+        c.quantidade,
+        c.valor_unitario,
+        c.valor_total_custo,
+        c.observacao
+      FROM ${custos} c
+      WHERE c.id_empresa = @empresaId
+        AND c.id_venda IS NULL
+        AND c.data_emissao_nf >= @mesInicio
+        AND c.data_emissao_nf < @mesFim
+        ${searchSql}
+      ORDER BY c.data_emissao_nf DESC, c.criado_em DESC
+      LIMIT 200
+    `,
+      params,
+    );
+
+    return {
+      mes,
+      itens: rows.map((r) => this.mapCustoEstoqueResumo(r)),
+    };
+  }
+
+  async obterCustoEstoque(auth: AuthContext, idCusto: string) {
+    this.assertOperador(auth);
+    const row = await this.buscarCustoEstoqueOuFalhar(auth.empresaId, idCusto);
+    if (row.id_venda) {
+      throw new BadRequestException(
+        'Este custo está ligado a uma venda. Consulte pela venda.',
+      );
+    }
+    return this.mapCustoEstoqueDetalhe(row);
+  }
+
+  async atualizarCustoEstoque(
+    auth: AuthContext,
+    idCusto: string,
+    dto: AtualizarCustoEstoqueDto,
+  ) {
+    this.assertOperador(auth);
+    const row = await this.buscarCustoEstoqueOuFalhar(auth.empresaId, idCusto);
+    if (row.id_venda) {
+      throw new BadRequestException(
+        'Este custo está ligado a uma venda. Edite pela venda.',
+      );
+    }
+
+    const { quantidade, valorUnitario, valorTotal } = valoresDoGasto({
+      quantidade: dto.quantidade,
+      valorUnitario: dto.valorUnitario,
+      valor: dto.valor ?? dto.quantidade * dto.valorUnitario,
+    });
+
+    const idCat = parseCatCustoId(row.observacao) ?? 0;
+    const descricaoAtual =
+      row.observacao?.split(' | ')[0]?.trim() || 'Custo de estoque';
+    const descricao = (dto.descricao?.trim() || descricaoAtual).trim();
+    const partes = (row.observacao ?? '').split(' | ').map((p) => p.trim());
+    const resto = partes.slice(1).filter((p) => !/^cat_custo:\d+$/i.test(p));
+    const observacao = [descricao, ...resto, `cat_custo:${idCat}`]
+      .filter(Boolean)
+      .join(' | ');
+
+    const agora = new Date().toISOString();
+    const custos = this.db.table('fato_custos_operacionais');
+    await this.db.update(
+      custos,
+      {
+        quantidade,
+        valor_unitario: valorUnitario,
+        valor_total_custo: valorTotal,
+        observacao,
+        id_usuario_alteracao: auth.userId,
+        alterado_em: agora,
+      },
+      { id_custo: idCusto, id_empresa: auth.empresaId },
+    );
+
+    return {
+      idCusto,
+      quantidade,
+      valorUnitario,
+      valor: valorTotal,
+      mensagem: 'Custo de estoque atualizado',
+    };
+  }
+
+  async excluirCustoEstoque(auth: AuthContext, idCusto: string) {
+    this.assertOperador(auth);
+    const row = await this.buscarCustoEstoqueOuFalhar(auth.empresaId, idCusto);
+    if (row.id_venda) {
+      throw new BadRequestException(
+        'Este custo está ligado a uma venda. Exclua pela venda.',
+      );
+    }
+
+    const custos = this.db.table('fato_custos_operacionais');
+    await this.db.remove(custos, {
+      id_custo: idCusto,
+      id_empresa: auth.empresaId,
+    });
+
+    return { idCusto, mensagem: 'Custo de estoque excluído' };
+  }
+
+  private async buscarCustoEstoqueOuFalhar(empresaId: string, idCusto: string) {
+    const custos = this.db.table('fato_custos_operacionais');
+    const [row] = await this.db.query<{
+      id_custo: string;
+      id_venda: string | null;
+      data_emissao_nf: string | null;
+      tipo_custo: string | null;
+      linha_produto: string | null;
+      quantidade: number | null;
+      valor_unitario: number | null;
+      valor_total_custo: number;
+      observacao: string | null;
+    }>(
+      `
+      SELECT
+        id_custo, id_venda, data_emissao_nf, tipo_custo, linha_produto,
+        quantidade, valor_unitario, valor_total_custo, observacao
+      FROM ${custos}
+      WHERE id_empresa = @empresaId AND id_custo = @idCusto
+      LIMIT 1
+    `,
+      { empresaId, idCusto },
+    );
+    if (!row) {
+      throw new NotFoundException('Custo não encontrado');
+    }
+    return row;
+  }
+
+  private mapCustoEstoqueResumo(r: {
+    id_custo: string;
+    data_emissao_nf: string | null;
+    tipo_custo: string | null;
+    linha_produto: string | null;
+    quantidade: number | null;
+    valor_unitario: number | null;
+    valor_total_custo: number;
+    observacao: string | null;
+  }) {
+    const valor = Number(r.valor_total_custo ?? 0);
+    const quantidade =
+      r.quantidade != null && Number(r.quantidade) > 0
+        ? Number(r.quantidade)
+        : 1;
+    const valorUnitario =
+      r.valor_unitario != null && Number.isFinite(Number(r.valor_unitario))
+        ? Number(r.valor_unitario)
+        : valor / quantidade;
+    const descricao =
+      r.observacao?.split(' | ')[0]?.trim() || 'Custo de estoque';
+    const dataCusto = this.asDateString(r.data_emissao_nf);
+    return {
+      idCusto: r.id_custo,
+      dataCusto,
+      tipoCusto: r.tipo_custo,
+      linha: r.linha_produto,
+      descricao,
+      quantidade,
+      valorUnitario,
+      valor,
+      idCustoCatalogo: parseCatCustoId(r.observacao) ?? 0,
+      rotulo: [
+        dataCusto ? dataCusto.split('-').reverse().join('/') : null,
+        r.tipo_custo,
+        descricao,
+        `R$ ${valor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      ]
+        .filter(Boolean)
+        .join(' · '),
+    };
+  }
+
+  private mapCustoEstoqueDetalhe(r: {
+    id_custo: string;
+    id_venda: string | null;
+    data_emissao_nf: string | null;
+    tipo_custo: string | null;
+    linha_produto: string | null;
+    quantidade: number | null;
+    valor_unitario: number | null;
+    valor_total_custo: number;
+    observacao: string | null;
+  }) {
+    return {
+      ...this.mapCustoEstoqueResumo(r),
+      associadoAVenda: Boolean(r.id_venda),
+      idVenda: r.id_venda,
+    };
+  }
+
   private async vendaExiste(empresaId: string, idVenda: string) {
     const vendas = this.db.table('fato_venda');
     const rows = await this.db.query<{ id_venda: string }>(
@@ -873,6 +1207,135 @@ export class LancamentosService {
       { empresaId, idVenda },
     );
     return rows.length > 0;
+  }
+
+  private async resolverItensCatalogo(itens: ItemVendaDto[]) {
+    const resolved = [];
+    for (const item of itens) {
+      resolved.push(await this.resolverItemCatalogo(item));
+    }
+    return resolved;
+  }
+
+  private async resolverItemCatalogo(item: ItemVendaDto) {
+    const catalogo = this.db.catalogTable('ctl_produtos');
+    const dimLinha = this.db.catalogTable('dim_linha');
+    const [linhaRow] = await this.db.query<{ cor_principal: string | null }>(
+      `
+      SELECT cor_principal
+      FROM ${dimLinha}
+      WHERE UPPER(codigo) = UPPER(@linha)
+      LIMIT 1
+    `,
+      { linha: item.linha },
+    );
+    const politica = politicaDaLinha(item.linha, linhaRow?.cor_principal);
+    let tipo: TipoCorPrincipal;
+    try {
+      tipo = tipoEfetivo({
+        politica,
+        tipoInformado: item.tipoCorPrincipal,
+      });
+    } catch (err) {
+      throw new BadRequestException(
+        err instanceof Error
+          ? err.message
+          : 'Escolha se a cor principal é perfil, vidro ou acessórios',
+      );
+    }
+
+    const corPrincipal = item.cor?.trim();
+    if (!corPrincipal) {
+      throw new BadRequestException(
+        'Informe a cor principal em todos os itens',
+      );
+    }
+
+    const corFilter =
+      politica === 'PERGUNTAR'
+        ? `cor = '${COR_SENTINELA}'`
+        : 'UPPER(cor) = UPPER(@cor)';
+    const [sku] = await this.db.query<{
+      id_produto: number;
+      unidade_venda: string;
+    }>(
+      `
+      SELECT id_produto, unidade_venda
+      FROM ${catalogo}
+      WHERE ativo = TRUE
+        AND UPPER(linha) = UPPER(@linha)
+        AND UPPER(produto) = UPPER(@produto)
+        AND ${corFilter}
+      LIMIT 1
+    `,
+      {
+        linha: item.linha,
+        produto: item.produto,
+        cor: corPrincipal,
+      },
+    );
+    if (!sku) {
+      throw new BadRequestException(
+        politica === 'PERGUNTAR'
+          ? `Não há produto âncora para ${item.linha} · ${item.produto}.`
+          : 'Preencha linha, produto e cor com uma combinação válida do catálogo',
+      );
+    }
+
+    if (politica === 'PERGUNTAR') {
+      await this.assertCorDim(tipo, corPrincipal);
+    }
+    const extras: Array<[TipoCorPrincipal, string | null | undefined]> = [
+      ['PERFIL', item.corPerfil],
+      ['VIDRO', item.corVidro],
+      ['ACESSORIO', item.corAcessorio],
+    ];
+    for (const [slot, valor] of extras) {
+      if (slot === tipo) continue;
+      const trimmed = valor?.trim();
+      if (trimmed) await this.assertCorDim(slot, trimmed);
+    }
+
+    const slots = slotsDoItem({
+      tipo,
+      corPrincipal,
+      corPerfil: item.corPerfil,
+      corVidro: item.corVidro,
+      corAcessorio: item.corAcessorio,
+    });
+
+    return {
+      item: {
+        ...item,
+        idProdutoCatalogo: Number(sku.id_produto),
+        unidadeVenda: item.unidadeVenda ?? sku.unidade_venda,
+        tipoCorPrincipal: tipo,
+      },
+      slots,
+    };
+  }
+
+  private async assertCorDim(aplicavel: TipoCorPrincipal, cor: string) {
+    const table = this.db.catalogTable('dim_cor');
+    const [row] = await this.db.query<{ codigo: string }>(
+      `
+      SELECT codigo
+      FROM ${table}
+      WHERE ativo = TRUE
+        AND codigo = @cor
+        AND (
+          UPPER(aplicavel_a) = UPPER(@aplicavel)
+          OR UPPER(aplicavel_a) = 'AMBOS'
+        )
+      LIMIT 1
+    `,
+      { cor, aplicavel },
+    );
+    if (!row) {
+      throw new BadRequestException(
+        `A cor ${cor} não vale para ${aplicavel.toLowerCase()}.`,
+      );
+    }
   }
 
   private buildDimProdutoRows(auth: AuthContext, itens: ItemVendaDto[]) {
@@ -963,7 +1426,9 @@ export class LancamentosService {
       observacaoExtra?: string;
     },
   ) {
-    const qtd = opts.gasto.quantidade ?? 1;
+    const { quantidade, valorUnitario, valorTotal } = valoresDoGasto(
+      opts.gasto,
+    );
     const observacao = [
       opts.gasto.descricao,
       opts.gasto.espessura ? `espessura ${opts.gasto.espessura}` : null,
@@ -985,9 +1450,9 @@ export class LancamentosService {
         opts.idProdutoConsumido ??
         catalogCostProductId(opts.gasto.idCustoCatalogo),
       id_fornecedor: null,
-      quantidade: qtd,
-      valor_unitario: opts.gasto.valor / qtd,
-      valor_total_custo: opts.gasto.valor,
+      quantidade,
+      valor_unitario: valorUnitario,
+      valor_total_custo: valorTotal,
       data_emissao_nf: opts.data,
       id_venda: opts.idVenda ?? null,
       id_venda_item: opts.idVendaItem,

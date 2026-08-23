@@ -85,7 +85,10 @@ export class AnalyticsService {
           AND UPPER(COALESCE(v.status_venda, 'FECHADA')) <> 'CANCELADA'
       ),
       custo_variavel AS (
-        SELECT COALESCE(SUM(valor_total_custo), 0) AS valor
+        SELECT
+          COALESCE(SUM(valor_total_custo), 0) AS valor,
+          COALESCE(SUM(valor_total_custo) FILTER (WHERE id_venda IS NOT NULL), 0) AS valor_venda,
+          COALESCE(SUM(valor_total_custo) FILTER (WHERE id_venda IS NULL), 0) AS valor_estoque
         FROM ${custos}
         WHERE id_empresa = @empresaId
           AND data_emissao_nf >= @mesInicio AND data_emissao_nf < @mesFim
@@ -107,6 +110,8 @@ export class AnalyticsService {
       SELECT
         receita.valor AS faturamento,
         custo_variavel.valor AS custos_variaveis,
+        custo_variavel.valor_venda AS custos_variaveis_venda,
+        custo_variavel.valor_estoque AS custos_variaveis_estoque,
         custo_fixo.valor AS custos_fixos,
         receita.valor - custo_variavel.valor AS margem_contribuicao,
         receita.valor - custo_variavel.valor - custo_fixo.valor AS lucro_operacional,
@@ -117,6 +122,8 @@ export class AnalyticsService {
     const [row] = await this.db.query<{
       faturamento: number;
       custos_variaveis: number;
+      custos_variaveis_venda: number;
+      custos_variaveis_estoque: number;
       custos_fixos: number;
       margem_contribuicao: number;
       lucro_operacional: number;
@@ -124,18 +131,81 @@ export class AnalyticsService {
     }>(sql, { empresaId, ...monthRange(mes) });
 
     const lucro = Number(row?.lucro_operacional ?? 0);
+    const custosVariaveis = Number(row?.custos_variaveis ?? 0);
+    const custosVariaveisEstoque = Number(row?.custos_variaveis_estoque ?? 0);
+
+    const custosEstoqueMes = await this.listarCustosEstoqueDoMes(
+      empresaId,
+      mes,
+    );
 
     return {
       mes,
       faturamento: Number(row?.faturamento ?? 0),
-      custosVariaveis: Number(row?.custos_variaveis ?? 0),
+      custosVariaveis,
+      custosVariaveisVenda: Number(row?.custos_variaveis_venda ?? 0),
+      custosVariaveisEstoque,
       custosFixos: Number(row?.custos_fixos ?? 0),
       margemContribuicao: Number(row?.margem_contribuicao ?? 0),
       margemPercentual: Number(row?.margem_percentual ?? 0),
       lucroOperacional: lucro,
       lucrativo: lucro > 0,
       deficitario: lucro < 0,
+      custosEstoqueMes,
     };
+  }
+
+  /** Lista compacta de custos de estoque do mês (para o card da Análise). */
+  private async listarCustosEstoqueDoMes(empresaId: string, mes: string) {
+    const custos = this.db.table('fato_custos_operacionais');
+    const range = monthRange(mes);
+    const rows = await this.db.query<{
+      id_custo: string;
+      data_emissao_nf: string | null;
+      tipo_custo: string | null;
+      linha_produto: string | null;
+      quantidade: number | null;
+      valor_unitario: number | null;
+      valor_total_custo: number;
+      observacao: string | null;
+    }>(
+      `
+      SELECT
+        id_custo, data_emissao_nf, tipo_custo, linha_produto,
+        quantidade, valor_unitario, valor_total_custo, observacao
+      FROM ${custos}
+      WHERE id_empresa = @empresaId
+        AND id_venda IS NULL
+        AND data_emissao_nf >= @mesInicio
+        AND data_emissao_nf < @mesFim
+      ORDER BY data_emissao_nf DESC, criado_em DESC
+      LIMIT 50
+    `,
+      { empresaId, ...range },
+    );
+
+    return rows.map((r) => {
+      const valor = Number(r.valor_total_custo ?? 0);
+      const quantidade =
+        r.quantidade != null && Number(r.quantidade) > 0
+          ? Number(r.quantidade)
+          : 1;
+      const valorUnitario =
+        r.valor_unitario != null && Number.isFinite(Number(r.valor_unitario))
+          ? Number(r.valor_unitario)
+          : valor / quantidade;
+      return {
+        idCusto: r.id_custo,
+        dataCusto: (r.data_emissao_nf ?? '').toString().slice(0, 10),
+        tipoCusto: r.tipo_custo,
+        linha: r.linha_produto,
+        descricao:
+          r.observacao?.split(' | ')[0]?.trim() || 'Custo de estoque',
+        quantidade,
+        valorUnitario,
+        valor,
+      };
+    });
   }
 
   /** Rentabilidade por produto e por linha (snapshot no item). */
@@ -247,16 +317,105 @@ export class AnalyticsService {
     );
 
     const porCliente = await this.rentabilidadeClientes(empresaId, mes);
+    const { mixPorTipo, mixPorSlot } = await this.mixCoresVenda(empresaId, mes);
 
     return {
       mes,
       porProduto,
       porLinha,
       porCliente,
+      mixPorTipo,
+      mixPorSlot,
       maisRentavel: porProduto[0] ?? null,
       menosRentavel: porProduto.length
         ? porProduto[porProduto.length - 1]
         : null,
+    };
+  }
+
+  /** Mix de cores informadas (NULL não entra no recorte do slot). */
+  private async mixCoresVenda(empresaId: string, mes: string) {
+    const itens = this.db.table('fato_venda_item');
+    const vendas = this.db.table('fato_venda');
+    const range = monthRange(mes);
+    const filtro = `
+      i.id_empresa = @empresaId
+      AND i.data_venda >= @mesInicio AND i.data_venda < @mesFim
+      AND UPPER(COALESCE(v.status_venda, 'FECHADA')) <> 'CANCELADA'
+    `;
+
+    const tipos = await this.db.query<{
+      tipo: string;
+      receita: number;
+      quantidade: number;
+      qtd_itens: number;
+    }>(
+      `
+      SELECT
+        i.tipo_cor_principal AS tipo,
+        SUM(i.valor_total_item) AS receita,
+        SUM(i.quantidade) AS quantidade,
+        COUNT(*)::int AS qtd_itens
+      FROM ${itens} i
+      INNER JOIN ${vendas} v
+        ON v.id_venda = i.id_venda AND v.id_empresa = i.id_empresa
+      WHERE ${filtro}
+      GROUP BY i.tipo_cor_principal
+      ORDER BY receita DESC
+    `,
+      { empresaId, ...range },
+    );
+
+    const slots = await this.db.query<{
+      slot: string;
+      cor: string;
+      receita: number;
+      quantidade: number;
+      qtd_itens: number;
+    }>(
+      `
+      SELECT slot, cor, SUM(receita) AS receita, SUM(quantidade) AS quantidade,
+             COUNT(*)::int AS qtd_itens
+      FROM (
+        SELECT 'PERFIL'::text AS slot, i.cor_perfil AS cor,
+               i.valor_total_item AS receita, i.quantidade
+        FROM ${itens} i
+        INNER JOIN ${vendas} v
+          ON v.id_venda = i.id_venda AND v.id_empresa = i.id_empresa
+        WHERE ${filtro} AND i.cor_perfil IS NOT NULL
+        UNION ALL
+        SELECT 'VIDRO', i.cor_vidro, i.valor_total_item, i.quantidade
+        FROM ${itens} i
+        INNER JOIN ${vendas} v
+          ON v.id_venda = i.id_venda AND v.id_empresa = i.id_empresa
+        WHERE ${filtro} AND i.cor_vidro IS NOT NULL
+        UNION ALL
+        SELECT 'ACESSORIO', i.cor_acessorio, i.valor_total_item, i.quantidade
+        FROM ${itens} i
+        INNER JOIN ${vendas} v
+          ON v.id_venda = i.id_venda AND v.id_empresa = i.id_empresa
+        WHERE ${filtro} AND i.cor_acessorio IS NOT NULL
+      ) x
+      GROUP BY slot, cor
+      ORDER BY slot, receita DESC
+    `,
+      { empresaId, ...range },
+    );
+
+    return {
+      mixPorTipo: tipos.map((r) => ({
+        tipo: r.tipo as 'PERFIL' | 'VIDRO' | 'ACESSORIO',
+        receita: Number(r.receita),
+        quantidade: Number(r.quantidade),
+        qtdItens: Number(r.qtd_itens),
+      })),
+      mixPorSlot: slots.map((r) => ({
+        slot: r.slot as 'PERFIL' | 'VIDRO' | 'ACESSORIO',
+        cor: r.cor,
+        receita: Number(r.receita),
+        quantidade: Number(r.quantidade),
+        qtdItens: Number(r.qtd_itens),
+      })),
     };
   }
 

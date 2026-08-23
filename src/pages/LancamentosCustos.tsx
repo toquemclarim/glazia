@@ -125,11 +125,8 @@ export function GerenciarCustos({
         .catch((e) => {
           if (!alive) return
           const raw = e instanceof Error ? e.message : 'Erro ao listar custos'
-          setErro(
-            /cannot get .*lancamentos\/custos/i.test(raw)
-              ? 'API sem a rota de custos. Reinicie o servidor (npm run start:dev) e atualize a página.'
-              : raw,
-          )
+          // Mostra a mensagem real (com URL/status) para diagnosticar 404 vs API antiga.
+          setErro(raw)
         })
         .finally(() => {
           if (alive) setLoading(false)

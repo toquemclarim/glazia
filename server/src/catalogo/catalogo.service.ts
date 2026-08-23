@@ -1,9 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service';
 import type {
+  CatalogoCoresQueryDto,
   CatalogoCustosQueryDto,
   CatalogoProdutosQueryDto,
 } from './dto/catalogo-query.dto';
+import { COR_SENTINELA } from '../lancamentos/cores-item';
 
 /** Escapa curingas para que a busca livre trate % e _ como texto comum. */
 function likeContains(term: string): string {
@@ -15,19 +17,70 @@ export class CatalogoService {
   constructor(private readonly db: DatabaseService) {}
 
   async listarLinhas() {
-    const table = this.db.catalogTable('ctl_produtos');
-    const rows = await this.db.query<{ linha: string; qtd: number }>(`
-      SELECT linha, COUNT(*) AS qtd
-      FROM ${table}
-      WHERE ativo = TRUE
-      GROUP BY linha
-      ORDER BY linha
+    const produtos = this.db.catalogTable('ctl_produtos');
+    const linhas = this.db.catalogTable('dim_linha');
+    const rows = await this.db.query<{
+      linha: string;
+      qtd: number;
+      cor_principal: string | null;
+    }>(`
+      SELECT
+        p.linha,
+        COUNT(*) FILTER (WHERE p.cor IS DISTINCT FROM '${COR_SENTINELA}') AS qtd,
+        COALESCE(MAX(l.cor_principal), 'PERGUNTAR') AS cor_principal
+      FROM ${produtos} p
+      LEFT JOIN ${linhas} l ON l.codigo = p.linha
+      WHERE p.ativo = TRUE
+      GROUP BY p.linha
+      ORDER BY p.linha
     `);
+    let cores: Record<'PERFIL' | 'VIDRO' | 'ACESSORIO', string[]> | undefined;
+    try {
+      cores = await this.agruparCoresDim();
+    } catch {
+      cores = undefined;
+    }
+
     return {
       itens: rows.map((r) => ({
         linha: r.linha,
         quantidadeSkus: Number(r.qtd),
+        corPrincipal: (r.cor_principal || 'PERGUNTAR').toUpperCase(),
       })),
+      cores,
+    };
+  }
+
+  /** Cores de dim_cor já agrupadas — evita 3 GETs extras no lançamento. */
+  async agruparCoresDim() {
+    const table = this.db.catalogTable('dim_cor');
+    const rows = await this.db.query<{
+      codigo: string;
+      aplicavel_a: string;
+    }>(`
+      SELECT codigo, aplicavel_a
+      FROM ${table}
+      WHERE ativo = TRUE
+        AND codigo IS DISTINCT FROM '${COR_SENTINELA}'
+      ORDER BY nome
+    `);
+    const ambos: string[] = [];
+    const porTipo: Record<string, string[]> = {
+      PERFIL: [],
+      VIDRO: [],
+      ACESSORIO: [],
+    };
+    for (const r of rows) {
+      const tipo = (r.aplicavel_a || '').toUpperCase();
+      if (tipo === 'AMBOS') ambos.push(r.codigo);
+      else if (porTipo[tipo]) porTipo[tipo].push(r.codigo);
+    }
+    const uniq = (xs: string[]) =>
+      [...new Set(xs)].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+    return {
+      PERFIL: uniq([...porTipo.PERFIL, ...ambos]),
+      VIDRO: uniq([...porTipo.VIDRO, ...ambos]),
+      ACESSORIO: uniq([...porTipo.ACESSORIO, ...ambos]),
     };
   }
 
@@ -73,9 +126,13 @@ export class CatalogoService {
     const produtosDistintos = [...new Set(rows.map((r) => r.produto))].sort(
       (a, b) => a.localeCompare(b, 'pt-BR'),
     );
-    const coresDistintas = [...new Set(rows.map((r) => r.cor))].sort((a, b) =>
-      a.localeCompare(b, 'pt-BR'),
-    );
+    const coresDistintas = [
+      ...new Set(
+        rows
+          .filter((r) => r.cor !== COR_SENTINELA)
+          .map((r) => r.cor),
+      ),
+    ].sort((a, b) => a.localeCompare(b, 'pt-BR'));
 
     return {
       produtosDisponiveis: produtosDistintos,
@@ -91,6 +148,31 @@ export class CatalogoService {
         unidadeVenda: r.unidade_venda || 'UN',
         rotulo: `${r.produto} · ${r.linha} · ${r.cor}`,
       })),
+    };
+  }
+
+  async listarCores(query: CatalogoCoresQueryDto) {
+    const table = this.db.catalogTable('dim_cor');
+    const aplicavel = (query.aplicavelA ?? '').trim().toUpperCase();
+    const params: Record<string, unknown> = {};
+    const filters = ['ativo = TRUE', `codigo IS DISTINCT FROM '${COR_SENTINELA}'`];
+    if (aplicavel && aplicavel !== 'AMBOS') {
+      filters.push(
+        '(UPPER(aplicavel_a) = UPPER(@aplicavelA) OR UPPER(aplicavel_a) = \'AMBOS\')',
+      );
+      params.aplicavelA = aplicavel;
+    }
+    const rows = await this.db.query<{ codigo: string; nome: string }>(
+      `
+      SELECT codigo, nome
+      FROM ${table}
+      WHERE ${filters.join(' AND ')}
+      ORDER BY nome
+    `,
+      params,
+    );
+    return {
+      itens: rows.map((r) => ({ codigo: r.codigo, nome: r.nome })),
     };
   }
 

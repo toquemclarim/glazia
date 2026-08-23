@@ -4,6 +4,7 @@ import { CurrentAuth } from '../auth/current-auth.decorator';
 import { assertOperador } from '../auth/roles';
 import { CatalogoService } from './catalogo.service';
 import {
+  CatalogoCoresQueryDto,
   CatalogoCustosQueryDto,
   CatalogoProdutosQueryDto,
 } from './dto/catalogo-query.dto';
@@ -30,6 +31,18 @@ export class CatalogoController {
   ) {
     assertOperador(auth);
     return this.catalogoService.listarProdutos(query);
+  }
+
+  /**
+   * Cores de referência (dim_cor) por aplicação: PERFIL, VIDRO ou ACESSORIO.
+   */
+  @Get('cores')
+  cores(
+    @CurrentAuth() auth: AuthContext,
+    @Query() query: CatalogoCoresQueryDto,
+  ) {
+    assertOperador(auth);
+    return this.catalogoService.listarCores(query);
   }
 
   /** Tipos de custo (VIDRO, PERFIL, FERRAGEM...). */

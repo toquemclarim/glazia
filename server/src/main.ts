@@ -29,12 +29,15 @@ function resolveCorsOrigins(corsOrigin: string): (string | RegExp)[] {
 async function bootstrap() {
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,
-    new FastifyAdapter({ trustProxy: true }),
+    new FastifyAdapter({ trustProxy: true, ignoreTrailingSlash: true }),
   );
   const config = app.get(ConfigService<Environment, true>);
   const logger = new Logger('Bootstrap');
 
-  await app.register(helmet);
+  // CORP same-origin (default do helmet) quebra fetch cross-origin do front em :5173.
+  await app.register(helmet, {
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+  });
 
   app.enableCors({
     origin: resolveCorsOrigins(config.get('CORS_ORIGIN', { infer: true })),

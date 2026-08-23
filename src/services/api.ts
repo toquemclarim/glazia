@@ -38,10 +38,15 @@ import type {
 } from '../types'
 import { coresDimPadrao } from '../utils/coresVenda'
 
-// Preferir `/api/v1` (proxy do Vite) em dev; string vazia não deve engolir o fallback.
-const API_URL =
+// Em dev, IPv4 explícito — `localhost` pode ir para ::1 e a API só escuta em 0.0.0.0.
+const rawApiUrl =
   import.meta.env.VITE_API_URL?.replace(/\/$/, '') ||
-  (import.meta.env.DEV ? '/api/v1' : 'http://127.0.0.1:3000/api/v1')
+  (import.meta.env.DEV
+    ? 'http://127.0.0.1:3000/api/v1'
+    : 'https://glazia-api-9yrb.onrender.com/api/v1')
+const API_URL = import.meta.env.DEV
+  ? rawApiUrl.replace(/\/\/localhost(?=[:/])/i, '//127.0.0.1')
+  : rawApiUrl
 
 /** Evita `/catalogo/cores/?x=` — Fastify trata a barra extra como outra rota. */
 function joinApiUrl(path: string): string {
@@ -112,7 +117,10 @@ async function apiRequest<T>(
     const message = Array.isArray(body?.message)
       ? body.message.join(', ')
       : body?.message
-    const err = new Error(message ?? `Erro HTTP ${response.status}`) as Error & {
+    const detail = message ?? `Erro HTTP ${response.status}`
+    const err = new Error(
+      `${detail} [${response.status} ${response.url}]`,
+    ) as Error & {
       code?: string
       status?: number
     }
