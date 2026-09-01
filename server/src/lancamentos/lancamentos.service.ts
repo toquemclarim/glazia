@@ -92,6 +92,25 @@ function monthRangeLocal(mes: string): { mesInicio: string; mesFim: string } {
   };
 }
 
+const STATUS_RECEBIDO = new Set(['RECEBIDO', 'REALIZADO', 'PAGO']);
+const STATUS_ABERTO = new Set(['PREVISTO', 'PENDENTE', 'ABERTO', 'VENCIDO']);
+
+function roundMoney(n: number): number {
+  return Math.round(Number(n) * 100) / 100;
+}
+
+function statusRecebido(status: string | null | undefined): boolean {
+  return STATUS_RECEBIDO.has((status ?? '').toUpperCase());
+}
+
+function statusAberto(status: string | null | undefined): boolean {
+  return STATUS_ABERTO.has((status ?? '').toUpperCase());
+}
+
+function novoIdFluxo(): string {
+  return `flx_${randomUUID().replace(/-/g, '')}`;
+}
+
 @Injectable()
 export class LancamentosService {
   constructor(private readonly db: DatabaseService) {}
@@ -350,28 +369,57 @@ export class LancamentosService {
       }
     }
 
-    const fluxoRow = {
-      id_transacao: `flx_${randomUUID().replace(/-/g, '')}`,
-      id_empresa: auth.empresaId,
-      tipo_movimentacao: 'ENTRADA',
-      id_plano_contas: 'pc_receita_vendas',
-      id_projeto: null,
-      data_vencimento: dto.dataPrevisaoRecebimento,
-      data_pagamento: null,
-      valor_previsto: valorTotal,
-      valor_realizado: null,
-      metodo_pagamento: null,
-      status_financeiro: 'PREVISTO',
-      data_competencia: dataVenda,
-      id_despesa_fixa: null,
-      id_venda: idVenda,
-      descricao: `Recebimento previsto — ${cliente.nome}`,
-      id_usuario_criacao: auth.userId,
-      criado_em: agora,
-      id_usuario_alteracao: null,
-      alterado_em: null,
-      origem: 'CRM_LANCAMENTOS',
-    };
+    const valorTotalArred = roundMoney(valorTotal);
+    const houveSinal = dto.houveSinal === true;
+    const valorSinal = houveSinal ? roundMoney(Number(dto.valorSinal ?? 0)) : 0;
+    if (houveSinal) {
+      if (!(valorSinal > 0)) {
+        throw new BadRequestException('Informe o valor do sinal');
+      }
+      if (valorSinal > valorTotalArred + 0.001) {
+        throw new BadRequestException(
+          'O sinal não pode ser maior que o total da venda',
+        );
+      }
+    }
+    const valorPendente = roundMoney(valorTotalArred - valorSinal);
+
+    const fluxoRows: Record<string, unknown>[] = [];
+    if (houveSinal && valorSinal > 0) {
+      fluxoRows.push(
+        this.linhaFluxoVenda({
+          auth,
+          idVenda,
+          agora,
+          dataVencimento: dataVenda,
+          dataPagamento: dataVenda,
+          dataCompetencia: dataVenda,
+          valorPrevisto: valorSinal,
+          valorRealizado: valorSinal,
+          status: 'RECEBIDO',
+          descricao: `Sinal — ${cliente.nome}`,
+        }),
+      );
+    }
+    if (valorPendente > 0) {
+      fluxoRows.push(
+        this.linhaFluxoVenda({
+          auth,
+          idVenda,
+          agora,
+          dataVencimento: dto.dataPrevisaoRecebimento,
+          dataPagamento: null,
+          dataCompetencia: dataVenda,
+          valorPrevisto: valorPendente,
+          valorRealizado: null,
+          status: 'PREVISTO',
+          descricao:
+            houveSinal && valorSinal > 0
+              ? `Saldo a receber — ${cliente.nome}`
+              : `Recebimento previsto — ${cliente.nome}`,
+        }),
+      );
+    }
 
     // Venda, itens, custos e previsão de recebimento entram ou falham juntos.
     await this.db.transaction(async (tx) => {
@@ -392,7 +440,9 @@ export class LancamentosService {
       if (custoRows.length) {
         await tx.insert(this.db.table('fato_custos_operacionais'), custoRows);
       }
-      await tx.insert(this.db.table('fato_fluxo_caixa'), [fluxoRow]);
+      if (fluxoRows.length) {
+        await tx.insert(this.db.table('fato_fluxo_caixa'), fluxoRows);
+      }
     });
 
     return {
@@ -512,20 +562,20 @@ export class LancamentosService {
       { empresaId: auth.empresaId, idVenda },
     );
 
-    const [fluxoRow] = await this.db.query<{
+    const fluxoRows = await this.db.query<{
       data_vencimento: string | null;
       data_pagamento: string | null;
       status_financeiro: string | null;
       valor_previsto: number | null;
+      valor_realizado: number | null;
     }>(
       `
-      SELECT data_vencimento, data_pagamento, status_financeiro, valor_previsto
+      SELECT data_vencimento, data_pagamento, status_financeiro,
+             valor_previsto, valor_realizado
       FROM ${fluxo}
       WHERE id_empresa = @empresaId AND id_venda = @idVenda
-      ORDER BY
-        CASE WHEN UPPER(COALESCE(status_financeiro, '')) IN ('RECEBIDO', 'REALIZADO', 'PAGO') THEN 0 ELSE 1 END,
-        criado_em
-      LIMIT 1
+        AND UPPER(COALESCE(status_financeiro, '')) <> 'CANCELADO'
+      ORDER BY criado_em
     `,
       { empresaId: auth.empresaId, idVenda },
     );
@@ -569,11 +619,49 @@ export class LancamentosService {
       gastosPorItem.set(c.id_venda_item, list);
     }
 
-    const statusFluxo = (fluxoRow?.status_financeiro ?? 'PREVISTO').toUpperCase();
-    const jaRecebido = ['RECEBIDO', 'REALIZADO', 'PAGO'].includes(statusFluxo);
-    const dataPagamento = jaRecebido
-      ? this.asDateString(fluxoRow?.data_pagamento ?? null)
-      : '';
+    const statusFluxoAgg = {
+      valorRecebido: 0,
+      valorPendente: 0,
+      temRecebido: false,
+      temAberto: false,
+      dataPagamento: '',
+      dataPrevisao: '',
+    };
+    for (const row of fluxoRows) {
+      if (statusRecebido(row.status_financeiro)) {
+        statusFluxoAgg.temRecebido = true;
+        statusFluxoAgg.valorRecebido += Number(
+          row.valor_realizado ?? row.valor_previsto ?? 0,
+        );
+        const pag = this.asDateString(row.data_pagamento ?? null);
+        if (pag && pag > statusFluxoAgg.dataPagamento) {
+          statusFluxoAgg.dataPagamento = pag;
+        }
+      } else {
+        statusFluxoAgg.temAberto = true;
+        statusFluxoAgg.valorPendente += Number(row.valor_previsto ?? 0);
+        const venc = this.asDateString(row.data_vencimento ?? null);
+        if (
+          venc &&
+          (!statusFluxoAgg.dataPrevisao || venc < statusFluxoAgg.dataPrevisao)
+        ) {
+          statusFluxoAgg.dataPrevisao = venc;
+        }
+      }
+    }
+    if (!statusFluxoAgg.dataPrevisao) {
+      const vencimentos = fluxoRows
+        .map((r) => this.asDateString(r.data_vencimento ?? null))
+        .filter(Boolean)
+        .sort();
+      statusFluxoAgg.dataPrevisao = vencimentos[vencimentos.length - 1] ?? '';
+    }
+    const valorRecebido = roundMoney(statusFluxoAgg.valorRecebido);
+    const valorPendente = roundMoney(statusFluxoAgg.valorPendente);
+    const jaRecebido = statusFluxoAgg.temRecebido && !statusFluxoAgg.temAberto;
+    const recebimentoParcial =
+      statusFluxoAgg.temRecebido && statusFluxoAgg.temAberto;
+    const dataPagamento = statusFluxoAgg.dataPagamento;
     const mesRecebimento = dataPagamento ? dataPagamento.slice(0, 7) : null;
 
     const itensDetalhe = itemRows.map((i) => {
@@ -630,13 +718,14 @@ export class LancamentosService {
       idCliente: venda.id_cliente,
       cliente: venda.cliente,
       dataVenda: this.asDateString(venda.data_venda),
-      dataPrevisaoRecebimento: this.asDateString(
-        fluxoRow?.data_vencimento ?? null,
-      ),
+      dataPrevisaoRecebimento: statusFluxoAgg.dataPrevisao,
       dataPagamento: dataPagamento || null,
       mesRecebimento,
       observacao: venda.observacao,
       valorTotal: Number(venda.valor_total_informado ?? 0),
+      valorRecebido,
+      valorPendente,
+      recebimentoParcial,
       status: venda.status_venda ?? 'FECHADA',
       jaRecebido,
       totais: {
@@ -804,33 +893,128 @@ export class LancamentosService {
         await tx.insert(custos, custoRows);
       }
 
+      const parcelas = await tx.query<{
+        id_transacao: string;
+        status_financeiro: string | null;
+        valor_previsto: number | null;
+        valor_realizado: number | null;
+      }>(
+        `
+        SELECT id_transacao, status_financeiro, valor_previsto, valor_realizado
+        FROM ${fluxo}
+        WHERE id_empresa = @empresaId AND id_venda = @idVenda
+          AND UPPER(COALESCE(status_financeiro, '')) <> 'CANCELADO'
+      `,
+        { empresaId: auth.empresaId, idVenda },
+      );
+
+      const recebidas = parcelas.filter((p) =>
+        statusRecebido(p.status_financeiro),
+      );
+      const abertas = parcelas.filter((p) =>
+        statusAberto(p.status_financeiro),
+      );
+      const jaRecebidoValor = roundMoney(
+        recebidas.reduce(
+          (s, p) => s + Number(p.valor_realizado ?? p.valor_previsto ?? 0),
+          0,
+        ),
+      );
+      const valorTotalArred = roundMoney(valorTotal);
+      if (valorTotalArred + 0.001 < jaRecebidoValor) {
+        throw new BadRequestException(
+          'O total da venda não pode ser menor que o valor já recebido',
+        );
+      }
+      const restante = roundMoney(valorTotalArred - jaRecebidoValor);
+      const descricaoAberto =
+        jaRecebidoValor > 0
+          ? `Saldo a receber — ${cliente.nome}`
+          : `Recebimento previsto — ${cliente.nome}`;
+
       await tx.query(
         `
         UPDATE ${fluxo}
-        SET data_vencimento = @previsao,
-            valor_previsto = @valorTotal,
-            valor_realizado = CASE
-              WHEN UPPER(COALESCE(status_financeiro, '')) IN ('RECEBIDO', 'REALIZADO', 'PAGO')
-              THEN @valorTotal
-              ELSE valor_realizado
-            END,
-            data_competencia = @dataVenda,
-            descricao = @descricao,
+        SET data_competencia = @dataVenda,
             id_usuario_alteracao = @userId,
             alterado_em = @agora
         WHERE id_empresa = @empresaId AND id_venda = @idVenda
+          AND UPPER(COALESCE(status_financeiro, '')) IN ('RECEBIDO', 'REALIZADO', 'PAGO')
       `,
-        {
-          empresaId: auth.empresaId,
-          idVenda,
-          previsao: dto.dataPrevisaoRecebimento,
-          valorTotal,
-          dataVenda,
-          descricao: `Recebimento previsto — ${cliente.nome}`,
-          userId: auth.userId,
-          agora,
-        },
+        { empresaId: auth.empresaId, idVenda, dataVenda, userId: auth.userId, agora },
       );
+
+      if (restante <= 0) {
+        if (abertas.length) {
+          await tx.query(
+            `
+            UPDATE ${fluxo}
+            SET status_financeiro = 'CANCELADO',
+                id_usuario_alteracao = @userId,
+                alterado_em = @agora
+            WHERE id_empresa = @empresaId AND id_venda = @idVenda
+              AND UPPER(COALESCE(status_financeiro, '')) IN ('PREVISTO', 'PENDENTE', 'ABERTO', 'VENCIDO')
+          `,
+            { empresaId: auth.empresaId, idVenda, userId: auth.userId, agora },
+          );
+        }
+      } else if (abertas.length === 0) {
+        await tx.insert(fluxo, [
+          this.linhaFluxoVenda({
+            auth,
+            idVenda,
+            agora,
+            dataVencimento: dto.dataPrevisaoRecebimento,
+            dataPagamento: null,
+            dataCompetencia: dataVenda,
+            valorPrevisto: restante,
+            valorRealizado: null,
+            status: 'PREVISTO',
+            descricao: descricaoAberto,
+          }),
+        ]);
+      } else {
+        const [primeira, ...extras] = abertas;
+        await tx.query(
+          `
+          UPDATE ${fluxo}
+          SET data_vencimento = @previsao,
+              valor_previsto = @restante,
+              data_competencia = @dataVenda,
+              descricao = @descricao,
+              id_usuario_alteracao = @userId,
+              alterado_em = @agora
+          WHERE id_transacao = @id AND id_empresa = @empresaId
+        `,
+          {
+            previsao: dto.dataPrevisaoRecebimento,
+            restante,
+            dataVenda,
+            descricao: descricaoAberto,
+            userId: auth.userId,
+            agora,
+            id: primeira.id_transacao,
+            empresaId: auth.empresaId,
+          },
+        );
+        for (const extra of extras) {
+          await tx.query(
+            `
+            UPDATE ${fluxo}
+            SET status_financeiro = 'CANCELADO',
+                id_usuario_alteracao = @userId,
+                alterado_em = @agora
+            WHERE id_transacao = @id AND id_empresa = @empresaId
+          `,
+            {
+              id: extra.id_transacao,
+              empresaId: auth.empresaId,
+              userId: auth.userId,
+              agora,
+            },
+          );
+        }
+      }
     });
 
     return {
@@ -1491,6 +1675,42 @@ export class LancamentosService {
       { idConta, empresaId, tipoConta, categoria, subcategoria },
     );
     return idConta;
+  }
+
+  private linhaFluxoVenda(opts: {
+    auth: AuthContext;
+    idVenda: string;
+    agora: string;
+    dataVencimento: string;
+    dataPagamento: string | null;
+    dataCompetencia: string;
+    valorPrevisto: number;
+    valorRealizado: number | null;
+    status: string;
+    descricao: string;
+  }): Record<string, unknown> {
+    return {
+      id_transacao: novoIdFluxo(),
+      id_empresa: opts.auth.empresaId,
+      tipo_movimentacao: 'ENTRADA',
+      id_plano_contas: 'pc_receita_vendas',
+      id_projeto: null,
+      data_vencimento: opts.dataVencimento,
+      data_pagamento: opts.dataPagamento,
+      valor_previsto: opts.valorPrevisto,
+      valor_realizado: opts.valorRealizado,
+      metodo_pagamento: null,
+      status_financeiro: opts.status,
+      data_competencia: opts.dataCompetencia,
+      id_despesa_fixa: null,
+      id_venda: opts.idVenda,
+      descricao: opts.descricao,
+      id_usuario_criacao: opts.auth.userId,
+      criado_em: opts.agora,
+      id_usuario_alteracao: null,
+      alterado_em: null,
+      origem: 'CRM_LANCAMENTOS',
+    };
   }
 
   private asDateString(value: string | null): string {

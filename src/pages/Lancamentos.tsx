@@ -38,6 +38,7 @@ import type {
   CatalogoCustoItem,
   CatalogoProdutoItem,
   Cliente,
+  CriarVendaPayload,
   VendaResumo,
 } from '../types'
 import { ClienteFormModal } from '../components/ClienteFormModal'
@@ -174,6 +175,9 @@ export function Lancamentos() {
   const [editCustoId, setEditCustoId] = useState<string | null>(null)
   const [erro, setErro] = useState<string | null>(null)
   const [sucesso, setSucesso] = useState<string | null>(null)
+  const [tourDemoSinal, setTourDemoSinal] = useState<
+    'off' | 'escolher' | 'sim'
+  >('off')
 
   useEffect(() => {
     return onTourAction((action) => {
@@ -182,6 +186,10 @@ export function Lancamentos() {
         setEditVendaId(null)
         setEditCustoId(null)
         setErro(null)
+        setTourDemoSinal('off')
+      }
+      if (action === 'reset-feature-demo') {
+        setTourDemoSinal('off')
       }
       if (action === 'open-venda') {
         setErro(null)
@@ -189,6 +197,21 @@ export function Lancamentos() {
         setEditVendaId(null)
         setEditCustoId(null)
         setModo('venda')
+      }
+      if (action === 'open-sinal-demo') {
+        setErro(null)
+        setSucesso(null)
+        setEditVendaId(null)
+        setEditCustoId(null)
+        setModo('venda')
+        setTourDemoSinal('escolher')
+      }
+      if (action === 'sinal-demo-sim') {
+        setErro(null)
+        setSucesso(null)
+        setEditVendaId(null)
+        setModo('venda')
+        setTourDemoSinal('sim')
       }
       if (action === 'open-custo') {
         setErro(null)
@@ -308,6 +331,7 @@ export function Lancamentos() {
       {modo === 'venda' && (
         <FormVenda
           vendaId={editVendaId}
+          tourDemoSinal={tourDemoSinal}
           onBack={() => {
             setEditVendaId(null)
             setModo(editVendaId ? 'gerenciar' : null)
@@ -437,12 +461,14 @@ function FormShell({
 
 function FormVenda({
   vendaId,
+  tourDemoSinal = 'off',
   onBack,
   onDone,
   erro,
   setErro: setErroProp,
 }: {
   vendaId?: string | null
+  tourDemoSinal?: 'off' | 'escolher' | 'sim'
   onBack: () => void
   onDone: (msg: string) => void
   erro: string | null
@@ -489,13 +515,15 @@ function FormVenda({
   const [loading, setLoading] = useState(true)
   const [carregandoLinha, setCarregandoLinha] = useState<string | null>(null)
   const [confirmEdit, setConfirmEdit] = useState(false)
+  const [confirmSinal, setConfirmSinal] = useState(false)
+  const [sinalModo, setSinalModo] = useState<'escolher' | 'sim'>('escolher')
+  const [valorSinalInput, setValorSinalInput] = useState('')
+  const [erroSinal, setErroSinal] = useState<string | null>(null)
   const [jaRecebido, setJaRecebido] = useState(false)
-  const [pendingPayload, setPendingPayload] = useState<{
-    idCliente: string
-    dataPrevisaoRecebimento: string
-    observacao?: string
-    itens: Parameters<typeof criarVendaLancamento>[0]['itens']
-  } | null>(null)
+  const [recebimentoParcial, setRecebimentoParcial] = useState(false)
+  const [pendingPayload, setPendingPayload] = useState<CriarVendaPayload | null>(
+    null,
+  )
 
   const carregarClientes = async () => {
     const res = await listarClientes()
@@ -609,6 +637,7 @@ function FormVenda({
         setPrevisao(det.dataPrevisaoRecebimento || todayInput())
         setObservacao(det.observacao ?? '')
         setJaRecebido(det.jaRecebido)
+        setRecebimentoParcial(Boolean(det.recebimentoParcial))
 
         const nextItens: ItemForm[] = []
         const nextGastos: GastoForm[] = []
@@ -985,17 +1014,57 @@ function FormVenda({
       return
     }
 
+    setPendingPayload(payload)
+    setSinalModo('escolher')
+    setValorSinalInput('')
+    setErroSinal(null)
+    setConfirmSinal(true)
+  }
+
+  const confirmarCriacao = async (opts: {
+    houveSinal: boolean
+    valorSinal?: number
+  }) => {
+    if (!pendingPayload) return
     setSalvando(true)
+    setErro(null)
+    setErroSinal(null)
     try {
-      const res = await criarVendaLancamento(payload)
+      const res = await criarVendaLancamento({
+        ...pendingPayload,
+        houveSinal: opts.houveSinal,
+        valorSinal: opts.valorSinal,
+      })
+      setConfirmSinal(false)
+      setPendingPayload(null)
       onDone(
         `${res.mensagem} · ${money(res.valorTotal)} · ${res.qtdItens} item(ns)`,
       )
     } catch (cause) {
-      setErro(mensagemFalhaSalvarVenda(cause))
+      setErroSinal(mensagemFalhaSalvarVenda(cause))
     } finally {
       setSalvando(false)
     }
+  }
+
+  const confirmarSemSinal = () => {
+    void confirmarCriacao({ houveSinal: false })
+  }
+
+  const confirmarComSinal = () => {
+    const valor = parseDecimal(valorSinalInput)
+    if (!(valor > 0) || Number.isNaN(valor)) {
+      setErroSinal('Informe o valor do sinal')
+      return
+    }
+    if (valor > total + 0.001) {
+      setErroSinal('O sinal não pode ser maior que o total da venda')
+      return
+    }
+    void confirmarCriacao({
+      houveSinal: true,
+      valorSinal: Math.round(valor * 100) / 100,
+    })
   }
 
   const confirmarEdicao = async () => {
@@ -1634,9 +1703,11 @@ function FormVenda({
           <h3 id="lanc-edit-venda-title">Confirmar edição da venda</h3>
           <p>
             Tem certeza que deseja salvar as alterações nesta venda?
-            {jaRecebido
-              ? ' Esta venda já tem recebimento marcado � o valor no caixa também será atualizado.'
-              : ' Itens, cliente, valores e previsão serão substituídos.'}
+            {recebimentoParcial
+              ? ' Esta venda tem sinal ou recebimento parcial — o saldo em aberto será ajustado ao novo total. Os valores já recebidos não mudam.'
+              : jaRecebido
+                ? ' Esta venda já foi recebida por completo — se o total aumentar, a diferença fica a receber. Não é possível reduzir abaixo do já recebido.'
+                : ' Itens, cliente, valores e previsão serão substituídos.'}
           </p>
           <div className="df-form-actions">
             <button
@@ -1665,6 +1736,187 @@ function FormVenda({
               )}
             </button>
           </div>
+        </div>
+      </div>
+    )}
+
+    {confirmSinal && (
+      <div className="df-drawer-backdrop" role="presentation">
+        <div
+          className="df-confirm df-confirm-wide glass"
+          role="alertdialog"
+          aria-modal="true"
+          aria-labelledby="lanc-sinal-title"
+        >
+          <h3 id="lanc-sinal-title">Houve algum sinal de pagamento?</h3>
+          <p>
+            No fechamento do contrato, às vezes entra um sinal e o restante
+            fica a receber. O total desta venda é{' '}
+            <strong>{money(total)}</strong>.
+          </p>
+          {sinalModo === 'escolher' ? (
+            <div className="df-confirm-stack">
+              <button
+                type="button"
+                className="btn btn-accent"
+                disabled={salvando}
+                onClick={confirmarSemSinal}
+              >
+                {salvando ? (
+                  <>
+                    <Loader2 className="spin" size={16} /> Salvando…
+                  </>
+                ) : (
+                  'Não, o valor fica completo'
+                )}
+              </button>
+              <button
+                type="button"
+                className="btn btn-ghost"
+                disabled={salvando}
+                onClick={() => {
+                  setSinalModo('sim')
+                  setErroSinal(null)
+                }}
+              >
+                Sim, houve sinal
+              </button>
+            </div>
+          ) : (
+            <>
+              <div className="field" style={{ marginBottom: '0.75rem' }}>
+                <label htmlFor="valor-sinal">Valor do sinal (R$)</label>
+                <input
+                  id="valor-sinal"
+                  inputMode="decimal"
+                  placeholder="0,00"
+                  value={valorSinalInput}
+                  autoFocus
+                  onChange={(e) => {
+                    setValorSinalInput(e.target.value)
+                    setErroSinal(null)
+                  }}
+                />
+              </div>
+              {(() => {
+                const v = parseDecimal(valorSinalInput)
+                const valido = v > 0 && v <= total + 0.001
+                const pendente = valido
+                  ? Math.round((total - v) * 100) / 100
+                  : null
+                if (pendente == null) return null
+                return (
+                  <p className="df-confirm-saldo">
+                    {pendente > 0
+                      ? `Ficará pendente ${money(pendente)}.`
+                      : 'O sinal cobre o total — nada fica a receber.'}
+                  </p>
+                )
+              })()}
+              {erroSinal && <p className="lanc-error">{erroSinal}</p>}
+              <div className="df-form-actions">
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  disabled={salvando}
+                  onClick={() => {
+                    setSinalModo('escolher')
+                    setValorSinalInput('')
+                    setErroSinal(null)
+                  }}
+                >
+                  Voltar
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-accent"
+                  disabled={salvando}
+                  onClick={confirmarComSinal}
+                >
+                  {salvando ? (
+                    <>
+                      <Loader2 className="spin" size={16} /> Salvando…
+                    </>
+                  ) : (
+                    'Confirmar venda'
+                  )}
+                </button>
+              </div>
+            </>
+          )}
+          {sinalModo === 'escolher' && (
+            <div className="df-form-actions" style={{ marginTop: '0.85rem' }}>
+              <button
+                type="button"
+                className="btn btn-ghost"
+                disabled={salvando}
+                onClick={() => {
+                  setConfirmSinal(false)
+                  setPendingPayload(null)
+                  setErroSinal(null)
+                }}
+              >
+                Cancelar
+              </button>
+            </div>
+          )}
+          {sinalModo === 'escolher' && erroSinal && (
+            <p className="lanc-error">{erroSinal}</p>
+          )}
+        </div>
+      </div>
+    )}
+
+    {tourDemoSinal !== 'off' && (
+      <div className="df-drawer-backdrop" role="presentation">
+        <div
+          className="df-confirm df-confirm-wide glass tour-demo-dialog"
+          data-tour="sinal-demo"
+          role="alertdialog"
+          aria-modal="true"
+          aria-labelledby="lanc-sinal-demo-title"
+        >
+          <p className="tour-demo-kicker">Demonstração</p>
+          <h3 id="lanc-sinal-demo-title">Houve algum sinal de pagamento?</h3>
+          <p>
+            No fechamento do contrato, às vezes entra um sinal e o restante
+            fica a receber. O total desta venda é{' '}
+            <strong>{money(10000)}</strong>.
+          </p>
+          {tourDemoSinal === 'escolher' ? (
+            <div className="df-confirm-stack">
+              <button
+                type="button"
+                className="btn btn-accent"
+                data-tour="sinal-demo-nao"
+                tabIndex={-1}
+              >
+                Não, o valor fica completo
+              </button>
+              <button type="button" className="btn btn-ghost" tabIndex={-1}>
+                Sim, houve sinal
+              </button>
+            </div>
+          ) : (
+            <>
+              <div
+                className="field"
+                data-tour="sinal-demo-valor"
+                style={{ marginBottom: '0.75rem' }}
+              >
+                <label htmlFor="valor-sinal-demo">Valor do sinal (R$)</label>
+                <input
+                  id="valor-sinal-demo"
+                  readOnly
+                  tabIndex={-1}
+                  value="5.000,00"
+                />
+              </div>
+              <p className="df-confirm-saldo">
+                Ficará pendente {money(5000)}.
+              </p>
+            </>
+          )}
         </div>
       </div>
     )}

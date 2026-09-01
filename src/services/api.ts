@@ -219,16 +219,25 @@ export async function obterPainelSocios(mes?: string): Promise<PainelSocios> {
   return apiRequest<PainelSocios>(withMes('/analytics/painel-socios', mes))
 }
 
-export async function marcarContaRecebida(idTransacao: string) {
+export async function marcarContaRecebida(
+  idTransacao: string,
+  valorRecebido?: number,
+) {
   return apiRequest<{
     idTransacao: string
     dataPagamento: string
     competencia: string
     valorRecebido: number
+    valorPendente?: number
     mensagem: string
   }>(
     `/analytics/contas-a-receber/${encodeURIComponent(idTransacao)}/marcar-recebido`,
-    { method: 'POST', body: JSON.stringify({}) },
+    {
+      method: 'POST',
+      body: JSON.stringify(
+        valorRecebido != null ? { valorRecebido } : {},
+      ),
+    },
   )
 }
 

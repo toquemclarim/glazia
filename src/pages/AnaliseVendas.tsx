@@ -465,9 +465,13 @@ export function AnaliseVendas() {
                   <h3>{detalhe.cliente || 'Venda sem cliente'}</h3>
                 </div>
                 <span
-                  className={`av-badge ${detalhe.jaRecebido ? 'ok' : 'wait'}`}
+                  className={`av-badge ${detalhe.jaRecebido ? 'ok' : detalhe.recebimentoParcial ? 'partial' : 'wait'}`}
                 >
-                  {detalhe.jaRecebido ? 'Recebido' : 'A receber'}
+                  {detalhe.jaRecebido
+                    ? 'Recebido'
+                    : detalhe.recebimentoParcial
+                      ? 'Parcial'
+                      : 'A receber'}
                 </span>
               </div>
 
@@ -567,7 +571,9 @@ export function AnaliseVendas() {
                           <dd>
                             {detalhe.jaRecebido && detalhe.mesRecebimento
                               ? mesPorExtenso(detalhe.mesRecebimento)
-                              : 'Ainda não recebido'}
+                              : detalhe.recebimentoParcial
+                                ? `${formatCurrency(detalhe.valorRecebido ?? 0)} recebido · pendente ${formatCurrency(detalhe.valorPendente ?? 0)}`
+                                : 'Ainda não recebido'}
                             {!detalhe.jaRecebido &&
                               detalhe.dataPrevisaoRecebimento && (
                                 <small>

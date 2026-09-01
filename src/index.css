@@ -3327,6 +3327,51 @@ table.data tr:hover td {
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--text-dim);
+  gap: 0.5rem;
+}
+
+.tour-tooltip-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-width: 0;
+}
+
+.tour-novelty {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.12rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border: 1px solid color-mix(in srgb, var(--accent) 42%, transparent);
+}
+
+.tour-demo-kicker {
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin: 0 0 0.35rem;
+}
+
+.tour-demo-dialog {
+  position: relative;
+  z-index: 123;
+}
+
+.tour-picker-option-novelty {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+  background: color-mix(in srgb, var(--accent-soft) 55%, var(--bg-hover));
+}
+
+.tour-picker-option-novelty .tour-novelty {
+  margin-bottom: 0.15rem;
 }
 
 .tour-skip {
@@ -3456,7 +3501,7 @@ table.data tr:hover td {
   min-height: 0;
 }
 
-.tour-picker-list > li:first-child {
+.tour-picker-list > li:nth-child(-n + 2) {
   grid-column: 1 / -1;
 }
 
@@ -4190,6 +4235,31 @@ table.data tr:hover td {
   color: var(--text-muted);
   line-height: 1.45;
   margin-bottom: 1rem;
+}
+
+.df-confirm-wide {
+  width: min(460px, calc(100% - 2rem));
+}
+
+.df-confirm-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.df-confirm-stack .btn {
+  width: 100%;
+  justify-content: center;
+}
+
+.df-confirm-saldo {
+  font-size: 0.9rem;
+  color: var(--text);
+  margin: -0.25rem 0 0.85rem;
+}
+
+.df-confirm .lanc-error {
+  margin-top: 0.65rem;
 }
 
 .df-hist-list {
@@ -6173,6 +6243,11 @@ table.data tr:hover td {
 .av-badge.wait {
   background: var(--accent-soft);
   color: var(--accent);
+}
+
+.av-badge.partial {
+  background: color-mix(in srgb, var(--accent, #c9a06a) 22%, transparent);
+  color: var(--accent, #8a7355);
 }
 
 .av-obs {

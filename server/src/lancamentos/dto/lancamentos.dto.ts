@@ -119,6 +119,17 @@ export class CriarVendaDto {
   @IsString()
   @Matches(/^\d{8}$/, { message: 'idCliente deve ser a matrícula de 8 dígitos' })
   idCliente!: string;
+
+  /** Sinal pago no ato do fechamento. Sem sinal = 100% a receber. */
+  @IsOptional()
+  @IsBoolean()
+  houveSinal?: boolean;
+
+  @ValidateIf((o: CriarVendaDto) => o.houveSinal === true)
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0.01)
+  valorSinal?: number;
 }
 
 export class CriarCustoDto {

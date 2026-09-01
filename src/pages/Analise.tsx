@@ -14,6 +14,7 @@ import { ExportButtons } from '../components/ExportButtons'
 import { useApp } from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
 import { marcarContaRecebida, obterPainelSocios } from '../services/api'
+import { onTourAction } from '../tour/events'
 import type { ContaAReceberItem, PainelSocios } from '../types'
 import {
   capitalize,
@@ -88,10 +89,30 @@ export function Analise() {
   const [error, setError] = useState<string | null>(null)
   const [confirmReceber, setConfirmReceber] =
     useState<ContaAReceberItem | null>(null)
+  const [receberModo, setReceberModo] = useState<'escolher' | 'menor'>('escolher')
+  const [valorMenor, setValorMenor] = useState('')
+  const [erroReceber, setErroReceber] = useState<string | null>(null)
   const [recebendoId, setRecebendoId] = useState<string | null>(null)
+  const [tourDemoReceber, setTourDemoReceber] = useState<
+    'off' | 'escolher' | 'menor'
+  >('off')
 
   const podeReceber =
     usuario?.cargo === 'DIRETOR'
+
+  const abrirReceber = (item: ContaAReceberItem) => {
+    setConfirmReceber(item)
+    setReceberModo('escolher')
+    setValorMenor('')
+    setErroReceber(null)
+  }
+
+  const fecharReceber = () => {
+    setConfirmReceber(null)
+    setReceberModo('escolher')
+    setValorMenor('')
+    setErroReceber(null)
+  }
 
   const carregar = useCallback(async () => {
     setLoading(true)
@@ -114,15 +135,30 @@ export function Analise() {
     void carregar()
   }, [carregar])
 
-  const confirmarRecebimento = async () => {
+  useEffect(() => {
+    return onTourAction((action) => {
+      if (action === 'reset-feature-demo') {
+        setTourDemoReceber('off')
+      }
+      if (action === 'open-receber-demo') {
+        setTourDemoReceber('escolher')
+      }
+      if (action === 'receber-demo-menor') {
+        setTourDemoReceber('menor')
+      }
+    })
+  }, [])
+
+  const confirmarRecebimento = async (valorRecebido?: number) => {
     if (!confirmReceber) return
     setRecebendoId(confirmReceber.idTransacao)
+    setErroReceber(null)
     try {
-      await marcarContaRecebida(confirmReceber.idTransacao)
-      setConfirmReceber(null)
+      await marcarContaRecebida(confirmReceber.idTransacao, valorRecebido)
+      fecharReceber()
       await carregar()
     } catch (cause) {
-      setError(
+      setErroReceber(
         cause instanceof Error
           ? cause.message
           : 'Não foi possível confirmar o recebimento',
@@ -130,6 +166,20 @@ export function Analise() {
     } finally {
       setRecebendoId(null)
     }
+  }
+
+  const confirmarValorMenor = () => {
+    if (!confirmReceber) return
+    const pago = Number(String(valorMenor).replace(',', '.'))
+    if (!(pago > 0) || Number.isNaN(pago)) {
+      setErroReceber('Informe quanto foi pago')
+      return
+    }
+    if (pago > confirmReceber.valorPrevisto + 0.001) {
+      setErroReceber('O valor pago não pode ser maior que o saldo em aberto')
+      return
+    }
+    void confirmarRecebimento(Math.round(pago * 100) / 100)
   }
 
   const gridStroke =
@@ -478,6 +528,15 @@ export function Analise() {
                         >
                           Venda em{' '}
                           {item.dataVenda.split('-').reverse().join('/')}
+                          {item.descricao
+                            ?.toLowerCase()
+                            .startsWith('sinal')
+                            ? ' · Sinal'
+                            : item.descricao
+                                  ?.toLowerCase()
+                                  .includes('saldo a receber')
+                              ? ' · Saldo a receber'
+                              : ''}
                         </div>
                       )}
                     </td>
@@ -510,7 +569,7 @@ export function Analise() {
                             className="btn btn-accent btn-sm"
                             data-tour="analise-receber-btn"
                             disabled={recebendoId === item.idTransacao}
-                            onClick={() => setConfirmReceber(item)}
+                            onClick={() => abrirReceber(item)}
                           >
                             <Check size={14} /> Recebido
                           </button>
@@ -851,47 +910,179 @@ export function Analise() {
       {confirmReceber && (
         <div className="df-drawer-backdrop" role="presentation">
           <div
-            className="df-confirm glass"
+            className="df-confirm df-confirm-wide glass"
             role="alertdialog"
             aria-modal="true"
             aria-labelledby="analise-receber-title"
           >
-            <h3 id="analise-receber-title">Confirmar recebimento</h3>
+            <h3 id="analise-receber-title">Quanto foi pago?</h3>
             <p>
-              Tem certeza que deseja marcar{' '}
               <strong>
                 {confirmReceber.cliente ||
                   textoSemCodigoInterno(confirmReceber.descricao) ||
-                  'esta parcela'}
-              </strong>{' '}
-              ({formatCurrency(confirmReceber.valorPrevisto)}) como recebido?
-              O valor passa a contar no <strong>fluxo de caixa</strong> do mês
-              — a análise de rentabilidade (DRE) não muda.
+                  'Esta parcela'}
+              </strong>
+              {' · '}
+              saldo em aberto {formatCurrency(confirmReceber.valorPrevisto)}.
+              O valor entra no <strong>fluxo de caixa</strong> do mês — a DRE
+              não muda.
             </p>
-            <div className="df-form-actions">
-              <button
-                type="button"
-                className="btn btn-ghost"
-                disabled={Boolean(recebendoId)}
-                onClick={() => setConfirmReceber(null)}
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                className="btn btn-accent"
-                disabled={Boolean(recebendoId)}
-                onClick={() => void confirmarRecebimento()}
-              >
-                {recebendoId ? (
-                  <>
-                    <Loader2 className="spin" size={16} /> Confirmando…
-                  </>
-                ) : (
-                  'Sim, marcar como recebido'
+            {receberModo === 'escolher' ? (
+              <div className="df-confirm-stack">
+                <button
+                  type="button"
+                  className="btn btn-accent"
+                  disabled={Boolean(recebendoId)}
+                  onClick={() => void confirmarRecebimento()}
+                >
+                  {recebendoId ? (
+                    <>
+                      <Loader2 className="spin" size={16} /> Confirmando…
+                    </>
+                  ) : (
+                    `Recebi o valor total (${formatCurrency(confirmReceber.valorPrevisto)})`
+                  )}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  disabled={Boolean(recebendoId)}
+                  onClick={() => {
+                    setReceberModo('menor')
+                    setErroReceber(null)
+                  }}
+                >
+                  Recebi um valor menor
+                </button>
+              </div>
+            ) : (
+              <>
+                <div className="field" style={{ marginBottom: '0.75rem' }}>
+                  <label htmlFor="valor-recebido">Valor pago (R$)</label>
+                  <input
+                    id="valor-recebido"
+                    inputMode="decimal"
+                    placeholder="0,00"
+                    value={valorMenor}
+                    autoFocus
+                    onChange={(e) => {
+                      setValorMenor(e.target.value)
+                      setErroReceber(null)
+                    }}
+                  />
+                </div>
+                {(() => {
+                  const pago = Number(String(valorMenor).replace(',', '.'))
+                  const valido =
+                    pago > 0 && pago <= confirmReceber.valorPrevisto + 0.001
+                  if (!valido) return null
+                  const pendente =
+                    Math.round((confirmReceber.valorPrevisto - pago) * 100) /
+                    100
+                  return (
+                    <p className="df-confirm-saldo">
+                      {pendente > 0
+                        ? `Ficará pendente ${formatCurrency(pendente)} para marcar depois.`
+                        : 'Esse valor quita o saldo em aberto.'}
+                    </p>
+                  )
+                })()}
+                {erroReceber && (
+                  <p className="lanc-error" style={{ marginBottom: '0.75rem' }}>
+                    {erroReceber}
+                  </p>
                 )}
-              </button>
-            </div>
+                <div className="df-form-actions">
+                  <button
+                    type="button"
+                    className="btn btn-ghost"
+                    disabled={Boolean(recebendoId)}
+                    onClick={() => {
+                      setReceberModo('escolher')
+                      setValorMenor('')
+                      setErroReceber(null)
+                    }}
+                  >
+                    Voltar
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-accent"
+                    disabled={Boolean(recebendoId)}
+                    onClick={confirmarValorMenor}
+                  >
+                    {recebendoId ? (
+                      <>
+                        <Loader2 className="spin" size={16} /> Confirmando…
+                      </>
+                    ) : (
+                      'Confirmar recebimento'
+                    )}
+                  </button>
+                </div>
+              </>
+            )}
+            {receberModo === 'escolher' && (
+              <div className="df-form-actions" style={{ marginTop: '0.85rem' }}>
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  disabled={Boolean(recebendoId)}
+                  onClick={fecharReceber}
+                >
+                  Cancelar
+                </button>
+              </div>
+            )}
+            {receberModo === 'escolher' && erroReceber && (
+              <p className="lanc-error">{erroReceber}</p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {tourDemoReceber !== 'off' && (
+        <div className="df-drawer-backdrop" role="presentation">
+          <div
+            className="df-confirm df-confirm-wide glass tour-demo-dialog"
+            data-tour="receber-demo"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="analise-receber-demo-title"
+          >
+            <p className="tour-demo-kicker">Demonstração</p>
+            <h3 id="analise-receber-demo-title">Quanto foi pago?</h3>
+            <p>
+              <strong>Cliente exemplo</strong>
+              {' · '}
+              saldo em aberto {formatCurrency(5000)}. O valor entra no{' '}
+              <strong>fluxo de caixa</strong> do mês — a DRE não muda.
+            </p>
+            {tourDemoReceber === 'escolher' ? (
+              <div className="df-confirm-stack">
+                <button type="button" className="btn btn-accent" tabIndex={-1}>
+                  Recebi o valor total ({formatCurrency(5000)})
+                </button>
+                <button type="button" className="btn btn-ghost" tabIndex={-1}>
+                  Recebi um valor menor
+                </button>
+              </div>
+            ) : (
+              <>
+                <div className="field" style={{ marginBottom: '0.75rem' }}>
+                  <label htmlFor="valor-recebido-demo">Valor pago (R$)</label>
+                  <input
+                    id="valor-recebido-demo"
+                    readOnly
+                    tabIndex={-1}
+                    value="3.000,00"
+                  />
+                </div>
+                <p className="df-confirm-saldo">
+                  Ficará pendente {formatCurrency(2000)} para marcar depois.
+                </p>
+              </>
+            )}
           </div>
         </div>
       )}

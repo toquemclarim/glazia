@@ -1,9 +1,13 @@
-import { Controller, Get, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
 import type { AuthContext } from '../auth/auth-context';
 import { CurrentAuth } from '../auth/current-auth.decorator';
 import { assertAnalista, assertDiretoria } from '../auth/roles';
 import { AnalyticsService } from './analytics.service';
-import { MesQueryDto, ProdutoQueryDto } from './dto/analytics-query.dto';
+import {
+  MarcarRecebidoDto,
+  MesQueryDto,
+  ProdutoQueryDto,
+} from './dto/analytics-query.dto';
 
 @Controller('analytics')
 export class AnalyticsController {
@@ -82,9 +86,10 @@ export class AnalyticsController {
   marcarRecebido(
     @CurrentAuth() auth: AuthContext,
     @Param('id') id: string,
+    @Body() body: MarcarRecebidoDto = {},
   ) {
     assertDiretoria(auth);
-    return this.analyticsService.marcarRecebido(auth, id);
+    return this.analyticsService.marcarRecebido(auth, id, body?.valorRecebido);
   }
 
   @Get('projecao-metas')

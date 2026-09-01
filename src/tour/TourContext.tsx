@@ -11,7 +11,12 @@ import { useNavigate } from 'react-router-dom'
 import { useApp } from '../context/AppContext'
 import { dispatchTourAction } from './events'
 import { flowAllowed, getTourFlow, TOUR_FLOWS } from './flows'
-import type { TourFlow, TourFlowId, TourStep } from './types'
+import {
+  buildSinalFlow,
+  markSinalTourCompleted,
+  wasSinalTourCompleted,
+} from './sinal'
+import type { TourAction, TourFlow, TourFlowId, TourStep } from './types'
 import {
   buildWelcomeFlow,
   markWelcomeCompleted,
@@ -30,14 +35,24 @@ type TourContextValue = {
   closeTour: () => void
   startFlow: (id: TourFlowId) => void
   startWelcomeTour: () => void
+  startSinalTour: () => void
   /** Dispara o tour de boas-vindas uma vez por usuário (após 1º login). */
   maybeAutoStartWelcome: () => void
+  /** Novidade de sinal/parcelas — uma vez, depois do welcome. */
+  maybeAutoStartSinalTour: () => void
   nextStep: () => void
   prevStep: () => void
   totalSteps: number
 }
 
 const TourContext = createContext<TourContextValue | null>(null)
+
+const DEMO_TOUR_ACTIONS: TourAction[] = [
+  'open-sinal-demo',
+  'sinal-demo-sim',
+  'open-receber-demo',
+  'receber-demo-menor',
+]
 
 async function prepareStep(step: TourStep, navigate: (path: string) => void) {
   if (step.route) {
@@ -48,7 +63,10 @@ async function prepareStep(step: TourStep, navigate: (path: string) => void) {
     for (const action of step.actions) {
       dispatchTourAction(action)
     }
-    await new Promise((r) => setTimeout(r, 350))
+    const demo = step.actions.some((action) =>
+      DEMO_TOUR_ACTIONS.includes(action),
+    )
+    await new Promise((r) => setTimeout(r, demo ? 500 : 350))
   } else {
     await new Promise((r) => setTimeout(r, 80))
   }
@@ -71,7 +89,8 @@ export function TourProvider({ children }: { children: ReactNode }) {
   const [flowId, setFlowId] = useState<TourFlowId | null>(null)
   const [customFlow, setCustomFlow] = useState<TourFlow | null>(null)
   const [stepIndex, setStepIndex] = useState(0)
-  const autoStartedRef = useRef(false)
+  const welcomeAutoRef = useRef(false)
+  const sinalAutoRef = useRef(false)
 
   const access = useMemo(
     () => ({
@@ -125,16 +144,16 @@ export function TourProvider({ children }: { children: ReactNode }) {
     setStepIndex(0)
   }, [])
 
-  const closeTour = useCallback(() => {
-    if (flowId === 'boas-vindas' && usuario?.idUser) {
-      markWelcomeCompleted(usuario.idUser)
-    }
-    setPhase('idle')
-    setFlowId(null)
-    setCustomFlow(null)
+  const startSinalTour = useCallback(() => {
+    if (!usuario || usuario.cargo === 'PLATFORM') return
+    const sinal = buildSinalFlow(welcomeCtx)
+    if (!sinal.steps.length) return
+    setCustomFlow(sinal)
+    setFlowId('sinal-parcelas')
     setStepIndex(0)
-    dispatchTourAction('close-sidebar')
-  }, [flowId, usuario?.idUser])
+    setPhase('running')
+    void prepareStep(sinal.steps[0], goNavigate)
+  }, [goNavigate, usuario, welcomeCtx])
 
   const startWelcomeTour = useCallback(() => {
     if (!usuario || usuario.cargo === 'PLATFORM') return
@@ -147,21 +166,65 @@ export function TourProvider({ children }: { children: ReactNode }) {
     void prepareStep(welcome.steps[0], goNavigate)
   }, [goNavigate, usuario, welcomeCtx])
 
+  const closeTour = useCallback(() => {
+    const closingId = flowId
+    if (closingId === 'boas-vindas' && usuario?.idUser) {
+      markWelcomeCompleted(usuario.idUser)
+    }
+    if (closingId === 'sinal-parcelas' && usuario?.idUser) {
+      markSinalTourCompleted(usuario.idUser)
+    }
+    setPhase('idle')
+    setFlowId(null)
+    setCustomFlow(null)
+    setStepIndex(0)
+    dispatchTourAction('close-sidebar')
+    dispatchTourAction('reset-feature-demo')
+    if (
+      closingId === 'boas-vindas' &&
+      usuario?.idUser &&
+      usuario.cargo !== 'PLATFORM' &&
+      !usuario.deveTrocarSenha &&
+      !wasSinalTourCompleted(usuario.idUser)
+    ) {
+      sinalAutoRef.current = true
+      window.setTimeout(() => {
+        startSinalTour()
+      }, 600)
+    }
+  }, [flowId, startSinalTour, usuario])
+
   const maybeAutoStartWelcome = useCallback(() => {
-    if (bootstrapping || autoStartedRef.current) return
+    if (bootstrapping || welcomeAutoRef.current) return
     if (!usuario || usuario.cargo === 'PLATFORM') return
     if (usuario.deveTrocarSenha) return
     if (wasWelcomeCompleted(usuario.idUser)) return
-    autoStartedRef.current = true
+    welcomeAutoRef.current = true
     window.setTimeout(() => {
       startWelcomeTour()
     }, 700)
   }, [bootstrapping, startWelcomeTour, usuario])
 
+  const maybeAutoStartSinalTour = useCallback(() => {
+    if (bootstrapping || sinalAutoRef.current) return
+    if (!usuario || usuario.cargo === 'PLATFORM') return
+    if (usuario.deveTrocarSenha) return
+    if (!wasWelcomeCompleted(usuario.idUser)) return
+    if (wasSinalTourCompleted(usuario.idUser)) return
+    sinalAutoRef.current = true
+    window.setTimeout(() => {
+      startSinalTour()
+    }, 700)
+  }, [bootstrapping, startSinalTour, usuario])
+
   const startFlow = useCallback(
     (id: TourFlowId) => {
       if (id === 'boas-vindas') {
         startWelcomeTour()
+        return
+      }
+      if (id === 'sinal-parcelas') {
+        startSinalTour()
         return
       }
       const next = getTourFlow(id)
@@ -175,7 +238,7 @@ export function TourProvider({ children }: { children: ReactNode }) {
 
       void prepareStep(next.steps[0], goNavigate)
     },
-    [access, goNavigate, startWelcomeTour],
+    [access, goNavigate, startSinalTour, startWelcomeTour],
   )
 
   const nextStep = useCallback(() => {
@@ -207,7 +270,9 @@ export function TourProvider({ children }: { children: ReactNode }) {
       closeTour,
       startFlow,
       startWelcomeTour,
+      startSinalTour,
       maybeAutoStartWelcome,
+      maybeAutoStartSinalTour,
       nextStep,
       prevStep,
       totalSteps,
@@ -222,7 +287,9 @@ export function TourProvider({ children }: { children: ReactNode }) {
       closeTour,
       startFlow,
       startWelcomeTour,
+      startSinalTour,
       maybeAutoStartWelcome,
+      maybeAutoStartSinalTour,
       nextStep,
       prevStep,
       totalSteps,

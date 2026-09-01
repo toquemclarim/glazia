@@ -419,6 +419,9 @@ export interface VendaDetalhe {
   mesRecebimento?: string | null
   observacao: string | null
   valorTotal: number
+  valorRecebido?: number
+  valorPendente?: number
+  recebimentoParcial?: boolean
   status: string
   jaRecebido: boolean
   totais?: {
@@ -529,6 +532,9 @@ export interface CriarVendaPayload {
   observacao?: string
   /** Matrícula de 8 dígitos do cliente. */
   idCliente: string
+  /** Sinal pago no ato do fechamento. Sem sinal = 100% a receber. */
+  houveSinal?: boolean
+  valorSinal?: number
 }
 
 export interface CriarCustoPayload {

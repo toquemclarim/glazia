@@ -68,7 +68,7 @@ export function Home() {
     podeGestaoFinanceira,
     navigateWithLoading,
   } = useApp()
-  const { startFlow, maybeAutoStartWelcome } = useTour()
+  const { startFlow, maybeAutoStartWelcome, maybeAutoStartSinalTour } = useTour()
   const navigate = useNavigate()
   const [agora, setAgora] = useState(() => new Date())
   const [modalCliente, setModalCliente] = useState(false)
@@ -95,7 +95,8 @@ export function Home() {
 
   useEffect(() => {
     maybeAutoStartWelcome()
-  }, [maybeAutoStartWelcome])
+    maybeAutoStartSinalTour()
+  }, [maybeAutoStartWelcome, maybeAutoStartSinalTour])
 
   const carregarVencimentos = useCallback(async () => {
     if (!podeGestaoFinanceira) return

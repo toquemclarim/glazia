@@ -6,6 +6,11 @@ export type TourAction =
   | 'open-venda'
   | 'open-custo'
   | 'reset-lancamentos'
+  | 'open-sinal-demo'
+  | 'sinal-demo-sim'
+  | 'open-receber-demo'
+  | 'receber-demo-menor'
+  | 'reset-feature-demo'
 
 export type TourStep = {
   /** Seletor CSS do alvo (ex.: [data-tour="nav-analise"]) */
@@ -23,6 +28,7 @@ export type TourStep = {
 
 export type TourFlowId =
   | 'boas-vindas'
+  | 'sinal-parcelas'
   | 'lancamento'
   | 'analise-mes'
   | 'exportar'
@@ -37,6 +43,8 @@ export type TourFlow = {
   id: TourFlowId
   question: string
   description: string
+  /** Selo de novidade no tooltip e no picker. */
+  novelty?: boolean
   /** Se true, ADM, Diretor ou Vendas */
   requiresOperar?: boolean
   /** Se true, Diretor ou Sócio */

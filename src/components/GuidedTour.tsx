@@ -121,7 +121,13 @@ function Spotlight({
 }
 
 function TourPicker() {
-  const { availableFlows, startFlow, startWelcomeTour, closeTour } = useTour()
+  const {
+    availableFlows,
+    startFlow,
+    startWelcomeTour,
+    startSinalTour,
+    closeTour,
+  } = useTour()
 
   return (
     <div className="tour-picker-backdrop" role="dialog" aria-modal="true">
@@ -146,6 +152,20 @@ function TourPicker() {
         </header>
 
         <ul className="tour-picker-list">
+          <li>
+            <button
+              type="button"
+              className="tour-picker-option tour-picker-option-featured tour-picker-option-novelty"
+              onClick={() => startSinalTour()}
+            >
+              <span className="tour-novelty">Novidade</span>
+              <strong>Sinal e pagamentos parcelados</strong>
+              <span>
+                Como registrar a entrada no fechamento e acompanhar o que
+                ainda falta receber — sem gravar nada, só uma volta na tela.
+              </span>
+            </button>
+          </li>
           <li>
             <button
               type="button"
@@ -219,7 +239,7 @@ function TourRunner() {
         }
 
         const tipW = Math.min(360, window.innerWidth - 24)
-        const tipH = 210
+        const tipH = flow?.novelty ? 250 : 210
         const pos = placeTooltip(found, tipW, tipH, step.placement)
         setTipPos({ top: pos.top, left: pos.left })
       } else {
@@ -250,7 +270,7 @@ function TourRunner() {
       window.removeEventListener('resize', onResize)
       window.removeEventListener('scroll', onResize, true)
     }
-  }, [step, stepIndex])
+  }, [flow, step, stepIndex])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -277,11 +297,14 @@ function TourRunner() {
         aria-labelledby="tour-tip-title"
       >
         <div className="tour-tooltip-progress">
-          <span>
-            Passo {stepIndex + 1} de {totalSteps}
+          <span className="tour-tooltip-kicker">
+            {flow.novelty && <span className="tour-novelty">Novidade</span>}
+            <span>
+              Passo {stepIndex + 1} de {totalSteps}
+            </span>
           </span>
           <button type="button" className="tour-skip" onClick={closeTour}>
-            Pular
+            Pular tour
           </button>
         </div>
 
@@ -309,7 +332,7 @@ function TourRunner() {
             onClick={prevStep}
             disabled={stepIndex === 0}
           >
-            <ArrowLeft size={16} /> Anterior
+            <ArrowLeft size={16} /> Voltar
           </button>
           <button type="button" className="btn btn-accent" onClick={nextStep}>
             {isLast ? (

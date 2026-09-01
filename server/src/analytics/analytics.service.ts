@@ -3,6 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
 import type { AuthContext } from '../auth/auth-context';
 import { DatabaseService } from '../database/database.service';
 
@@ -57,6 +58,14 @@ function textoAmigavelFinanceiro(
   }
 
   return texto;
+}
+
+function roundMoney(n: number): number {
+  return Math.round(Number(n) * 100) / 100;
+}
+
+function novoIdFluxo(): string {
+  return `flx_${randomUUID().replace(/-/g, '')}`;
 }
 
 @Injectable()
@@ -958,24 +967,42 @@ export class AnalyticsService {
   }
 
   /** Diretor confirma que o cliente pagou a parcela (entra no caixa). */
-  async marcarRecebido(auth: AuthContext, idTransacao: string) {
+  async marcarRecebido(
+    auth: AuthContext,
+    idTransacao: string,
+    valorRecebido?: number,
+  ) {
     // RBAC validado no controller (assertDiretoria).
 
     const fluxo = this.db.table('fato_fluxo_caixa');
+    const vendas = this.db.table('fato_venda');
+    const clientes = this.db.table('dim_cliente');
     const [parcela] = await this.db.query<{
       id_transacao: string;
       tipo_movimentacao: string;
       status_financeiro: string;
       valor_previsto: number;
       data_vencimento: string;
+      data_competencia: string | null;
       descricao: string | null;
+      id_venda: string | null;
+      id_plano_contas: string | null;
+      id_projeto: string | null;
+      origem: string | null;
+      cliente: string | null;
     }>(
       `
       SELECT
-        id_transacao, tipo_movimentacao, status_financeiro,
-        valor_previsto, data_vencimento, descricao
-      FROM ${fluxo}
-      WHERE id_transacao = @id AND id_empresa = @empresaId
+        f.id_transacao, f.tipo_movimentacao, f.status_financeiro,
+        f.valor_previsto, f.data_vencimento, f.data_competencia,
+        f.descricao, f.id_venda, f.id_plano_contas, f.id_projeto, f.origem,
+        c.nome AS cliente
+      FROM ${fluxo} f
+      LEFT JOIN ${vendas} v
+        ON v.id_venda = f.id_venda AND v.id_empresa = f.id_empresa
+      LEFT JOIN ${clientes} c
+        ON c.id_cliente = v.id_cliente AND c.id_empresa = f.id_empresa
+      WHERE f.id_transacao = @id AND f.id_empresa = @empresaId
       LIMIT 1
     `,
       { id: idTransacao, empresaId: auth.empresaId },
@@ -998,32 +1025,85 @@ export class AnalyticsService {
       throw new BadRequestException('Não é possível receber uma parcela cancelada');
     }
 
-    const hoje = new Date().toISOString().slice(0, 10);
-    await this.db.query(
-      `
-      UPDATE ${fluxo}
-      SET status_financeiro = 'RECEBIDO',
-          data_pagamento = @hoje,
-          valor_realizado = @valor,
-          id_usuario_alteracao = @userId,
-          alterado_em = now()
-      WHERE id_transacao = @id AND id_empresa = @empresaId
-    `,
-      {
-        hoje,
-        valor: parcela.valor_previsto,
-        userId: auth.userId,
-        id: idTransacao,
-        empresaId: auth.empresaId,
-      },
-    );
+    const previsto = roundMoney(Number(parcela.valor_previsto));
+    const pago =
+      valorRecebido == null ? previsto : roundMoney(Number(valorRecebido));
+    if (!(pago > 0)) {
+      throw new BadRequestException('Informe um valor pago maior que zero');
+    }
+    if (pago > previsto + 0.001) {
+      throw new BadRequestException(
+        'O valor pago não pode ser maior que o saldo em aberto',
+      );
+    }
 
+    const hoje = new Date().toISOString().slice(0, 10);
+    const quitaTudo = pago >= previsto - 0.001;
+    const restante = quitaTudo ? 0 : roundMoney(previsto - pago);
+    const clienteNome = parcela.cliente?.trim() || null;
+    const agora = new Date().toISOString();
+
+    await this.db.transaction(async (tx) => {
+      await tx.query(
+        `
+        UPDATE ${fluxo}
+        SET status_financeiro = 'RECEBIDO',
+            data_pagamento = @hoje,
+            valor_previsto = @pago,
+            valor_realizado = @pago,
+            id_usuario_alteracao = @userId,
+            alterado_em = now()
+        WHERE id_transacao = @id AND id_empresa = @empresaId
+      `,
+        {
+          hoje,
+          pago,
+          userId: auth.userId,
+          id: idTransacao,
+          empresaId: auth.empresaId,
+        },
+      );
+
+      if (restante > 0) {
+        await tx.insert(fluxo, [
+          {
+            id_transacao: novoIdFluxo(),
+            id_empresa: auth.empresaId,
+            tipo_movimentacao: parcela.tipo_movimentacao,
+            id_plano_contas: parcela.id_plano_contas,
+            id_projeto: parcela.id_projeto,
+            data_vencimento: parcela.data_vencimento,
+            data_pagamento: null,
+            valor_previsto: restante,
+            valor_realizado: null,
+            metodo_pagamento: null,
+            status_financeiro: 'PREVISTO',
+            data_competencia: parcela.data_competencia,
+            id_despesa_fixa: null,
+            id_venda: parcela.id_venda,
+            descricao: clienteNome
+              ? `Saldo a receber — ${clienteNome}`
+              : 'Saldo a receber',
+            id_usuario_criacao: auth.userId,
+            criado_em: agora,
+            id_usuario_alteracao: null,
+            alterado_em: null,
+            origem: parcela.origem ?? 'CRM_LANCAMENTOS',
+          },
+        ]);
+      }
+    });
+
+    const dataBr = hoje.split('-').reverse().join('/');
     return {
       idTransacao,
       dataPagamento: hoje,
       competencia: parcela.data_vencimento,
-      valorRecebido: Number(parcela.valor_previsto),
-      mensagem: `Recebimento confirmado em ${hoje.split('-').reverse().join('/')} — entra no caixa do mês`,
+      valorRecebido: pago,
+      valorPendente: restante,
+      mensagem: restante > 0
+        ? `Recebimento de ${pago.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} confirmado em ${dataBr}. Ficam ${restante.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} a receber.`
+        : `Recebimento confirmado em ${dataBr} — entra no caixa do mês`,
     };
   }
 
