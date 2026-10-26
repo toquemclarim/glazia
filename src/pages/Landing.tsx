@@ -316,8 +316,11 @@ export function Landing() {
               <div className="lp-hero-copy lp-hero-in">
                 <p className="lp-kicker">Feito para vidraçarias e esquadrias</p>
                 <h1>
-                  Descubra <span className="lp-hl">para onde o dinheiro</span>{' '}
-                  da sua vidraçaria está indo.
+                  Descubra <span className="lp-hl">para onde</span>
+                  <br />
+                  <span className="lp-hl">o dinheiro</span> da sua
+                  <br />
+                  vidraçaria está indo.
                 </h1>
                 <p className="lp-hero-lead">
                   Controle financeiro simples e inteligente: resultado do mês,

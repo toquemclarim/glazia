@@ -762,7 +762,7 @@ html.lp-active {
 }
 
 .lp-hero-copy {
-  max-width: 36rem;
+  max-width: 42rem;
 }
 
 .lp-hero-copy h1 {
@@ -772,7 +772,6 @@ html.lp-active {
   line-height: 1.02;
   letter-spacing: -0.042em;
   color: var(--lp-ink);
-  text-wrap: balance;
 }
 
 .lp-hero-lead {
