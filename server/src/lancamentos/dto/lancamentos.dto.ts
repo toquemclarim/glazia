@@ -228,6 +228,15 @@ export class AtualizarCustoEstoqueDto {
   @IsOptional()
   @IsString()
   descricao?: string;
+
+  @IsOptional()
+  @IsString()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/)
+  dataCusto?: string;
+
+  @IsOptional()
+  @IsString()
+  observacao?: string;
 }
 
 /** Mesmo payload da criação — substitui itens/custos da venda. */

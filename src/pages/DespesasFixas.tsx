@@ -25,6 +25,24 @@ function todayInput() {
   return new Date().toISOString().slice(0, 10)
 }
 
+function hojeBrasil() {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date())
+}
+
+function ymd(value: string | null | undefined) {
+  return value ? String(value).slice(0, 10) : null
+}
+
+function formatDataIso(value: string | null | undefined) {
+  const data = ymd(value)
+  return data ? data.split('-').reverse().join('/') : '—'
+}
+
 type FormState = {
   descricao: string
   categoriaId: string
@@ -245,7 +263,12 @@ export function DespesasFixas() {
     setMarcandoPago(true)
     setErro(null)
     try {
-      const idTransacao = confirmPago.proximaParcela?.idTransacao
+      const idTransacao =
+        confirmPago.proximaParcela?.idTransacao ??
+        (!confirmPago.parcelaMesAtualPaga
+          ? confirmPago.parcelaMesAtualId
+          : undefined) ??
+        undefined
       const res = await marcarDespesaPaga(confirmPago.id, idTransacao)
       setOk(res.mensagem)
       setConfirmPago(null)
@@ -366,9 +389,19 @@ export function DespesasFixas() {
             <h3 className="df-list-title">Detalhes e vigência</h3>
             <div className="df-cards">
               {itens.map((item) => {
-                const temParcelaAberta = Boolean(item.proximaParcela)
+                const temParcelaAberta = Boolean(
+                  item.proximaParcela ||
+                    (item.parcelaMesAtualId && !item.parcelaMesAtualPaga),
+                )
                 const pagoMes = Boolean(item.parcelaMesAtualPaga)
                 const pagoHoje = Boolean(item.pagoHoje)
+                const vencimentoAlvo = ymd(item.proximaParcela?.dataVencimento)
+                const parcelaEmAtraso = Boolean(
+                  vencimentoAlvo && vencimentoAlvo < hojeBrasil(),
+                )
+                const vencimentoLabel = formatDataIso(
+                  item.proximaParcela?.dataVencimento,
+                )
                 return (
                 <article key={item.id} className="df-card glass">
                   <div className="df-card-top">
@@ -443,9 +476,11 @@ export function DespesasFixas() {
                           {pagoMes
                             ? 'Parcela do mês paga'
                             : pagoHoje
-                              ? `Registrado hoje · próxima ${item.proximaParcela?.dataVencimento?.split('-').reverse().join('/') ?? '—'}`
+                              ? `Registrado hoje · próxima ${vencimentoLabel}`
                               : temParcelaAberta
-                                ? `Próximo vencimento ${item.proximaParcela?.dataVencimento?.split('-').reverse().join('/')}`
+                                ? parcelaEmAtraso
+                                  ? `Em atraso · vencimento ${vencimentoLabel}`
+                                  : `Próximo vencimento ${vencimentoLabel}`
                                 : 'Sem parcela em aberto'}
                         </strong>
                         <p>
@@ -681,12 +716,13 @@ export function DespesasFixas() {
               {confirmPago.proximaParcela?.dataVencimento && (
                 <>
                   {' '}
-                  A parcela com vencimento em{' '}
+                  {ymd(confirmPago.proximaParcela.dataVencimento) &&
+                  ymd(confirmPago.proximaParcela.dataVencimento)! <
+                    hojeBrasil()
+                    ? 'A parcela em atraso com vencimento em'
+                    : 'A parcela com vencimento em'}{' '}
                   <strong>
-                    {confirmPago.proximaParcela.dataVencimento
-                      .split('-')
-                      .reverse()
-                      .join('/')}
+                    {formatDataIso(confirmPago.proximaParcela.dataVencimento)}
                   </strong>{' '}
                   ({formatCurrency(confirmPago.valorMensal)}) sai da lista de
                   próximos vencimentos.

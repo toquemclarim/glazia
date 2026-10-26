@@ -247,8 +247,7 @@ export class DespesasFixasService implements OnModuleInit {
         WHERE f.id_despesa_fixa = d.id_despesa_fixa
           AND f.id_empresa = d.id_empresa
           AND UPPER(f.status_financeiro) IN ('PREVISTO', 'PENDENTE', 'ABERTO', 'VENCIDO')
-          AND f.data_vencimento >= CURRENT_DATE
-        ORDER BY f.data_vencimento
+        ORDER BY f.data_vencimento, f.id_transacao
         LIMIT 1
       ) prox ON TRUE
       LEFT JOIN LATERAL (
@@ -429,8 +428,8 @@ export class DespesasFixasService implements OnModuleInit {
   }
 
   /**
-   * Diretor/ADM sinaliza a próxima parcela em aberto como paga.
-   * Usa a mesma regra da UI (vencimento >= hoje), ou a parcela informada.
+   * Diretor/ADM sinaliza a parcela em aberto mais antiga como paga
+   * (atraso do mês atual ou de meses anteriores — nunca a do mês seguinte).
    */
   async marcarPago(
     auth: AuthContext,
@@ -457,36 +456,27 @@ export class DespesasFixasService implements OnModuleInit {
         valor_previsto: number;
         status_financeiro: string;
       }>(
-        idTransacao
-          ? `
-        SELECT id_transacao, data_vencimento, valor_previsto, status_financeiro
-        FROM ${this.db.table('fato_fluxo_caixa')}
-        WHERE id_empresa = @empresaId
-          AND id_despesa_fixa = @id
-          AND id_transacao = @idTransacao
-          AND UPPER(status_financeiro) IN ('PREVISTO', 'PENDENTE', 'ABERTO', 'VENCIDO')
-        LIMIT 1
-      `
-          : `
+        `
         SELECT id_transacao, data_vencimento, valor_previsto, status_financeiro
         FROM ${this.db.table('fato_fluxo_caixa')}
         WHERE id_empresa = @empresaId
           AND id_despesa_fixa = @id
           AND UPPER(status_financeiro) IN ('PREVISTO', 'PENDENTE', 'ABERTO', 'VENCIDO')
-          AND data_vencimento >= CURRENT_DATE
-        ORDER BY data_vencimento
+        ORDER BY data_vencimento, id_transacao
         LIMIT 1
       `,
-        {
-          empresaId: auth.empresaId,
-          id: idDespesa,
-          idTransacao: idTransacao ?? null,
-        },
+        { empresaId: auth.empresaId, id: idDespesa },
       );
 
       if (!parcela) {
         throw new BadRequestException(
           'Não há parcela em aberto para este custo fixo',
+        );
+      }
+
+      if (idTransacao && idTransacao !== parcela.id_transacao) {
+        this.logger.warn(
+          `marcarPago: parcela pedida ${idTransacao} ignorada; quitando a mais antiga ${parcela.id_transacao} (${parcela.data_vencimento})`,
         );
       }
 

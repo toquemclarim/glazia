@@ -6,6 +6,7 @@ import {
 import { randomUUID } from 'node:crypto';
 import type { AuthContext } from '../auth/auth-context';
 import { DatabaseService } from '../database/database.service';
+import { parseObservacaoCusto } from '../lancamentos/custo-observacao';
 
 function currentMonthUtc(): string {
   const now = new Date();
@@ -203,13 +204,14 @@ export class AnalyticsService {
         r.valor_unitario != null && Number.isFinite(Number(r.valor_unitario))
           ? Number(r.valor_unitario)
           : valor / quantidade;
+      const parsed = parseObservacaoCusto(r.observacao);
       return {
         idCusto: r.id_custo,
         dataCusto: (r.data_emissao_nf ?? '').toString().slice(0, 10),
         tipoCusto: r.tipo_custo,
         linha: r.linha_produto,
-        descricao:
-          r.observacao?.split(' | ')[0]?.trim() || 'Custo de estoque',
+        descricao: parsed.descricao,
+        observacao: parsed.observacao,
         quantidade,
         valorUnitario,
         valor,

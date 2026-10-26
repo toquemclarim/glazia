@@ -43,7 +43,16 @@ function ordenarTiposCusto(tipos: string[]) {
 }
 
 function currentMonthInput() {
-  return new Date().toISOString().slice(0, 7)
+  return hojeBrasil().slice(0, 7)
+}
+
+function hojeBrasil() {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date())
 }
 
 function FormShell({
@@ -207,6 +216,7 @@ export function GerenciarCustos({
                     .filter(Boolean)
                     .join(' · ')}
                   {` · ${c.quantidade.toLocaleString('pt-BR')} × ${money(c.valorUnitario)}`}
+                  {c.observacao ? ` · ${c.observacao}` : ''}
                 </span>
               </div>
               <div style={{ display: 'flex', gap: '0.35rem' }}>
@@ -311,6 +321,8 @@ export function FormCusto({
   const [salvando, setSalvando] = useState(false)
   const [loading, setLoading] = useState(true)
   const [linhasCustoOpts, setLinhasCustoOpts] = useState<string[]>([])
+  const [dataCusto, setDataCusto] = useState(hojeBrasil)
+  const [observacao, setObservacao] = useState('')
 
   const isOutros = tipo.toUpperCase() === 'OUTROS'
 
@@ -331,6 +343,8 @@ export function FormCusto({
         setQuantidade(String(det.quantidade).replace('.', ','))
         setValorUnitario(String(det.valorUnitario).replace('.', ','))
         setRotuloFixo(det.descricao)
+        setDataCusto(det.dataCusto?.slice(0, 10) || hojeBrasil())
+        setObservacao(det.observacao ?? '')
         if ((det.tipoCusto ?? '').toUpperCase() === 'OUTROS') {
           setItemLivre(det.descricao)
         }
@@ -440,6 +454,10 @@ export function FormCusto({
       setErro('Informe quantidade e valor unitário válidos')
       return
     }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dataCusto)) {
+      setErro('Informe a data do lançamento')
+      return
+    }
 
     if (editando && custoId) {
       setSalvando(true)
@@ -449,6 +467,8 @@ export function FormCusto({
           valorUnitario: valorUnitarioNum,
           valor: total,
           descricao: isOutros ? itemLivre.trim() || undefined : undefined,
+          dataCusto,
+          observacao: observacao.trim(),
         })
         onDone(res.mensagem)
       } catch (cause) {
@@ -488,6 +508,8 @@ export function FormCusto({
         valorUnitario: valorUnitarioNum,
         associadoAVenda: associar,
         idVenda: associar ? idVenda : undefined,
+        dataCusto,
+        observacao: observacao.trim() || undefined,
       })
       onDone(res.mensagem)
     } catch (cause) {
@@ -642,6 +664,29 @@ export function FormCusto({
             </div>
           </div>
 
+          <div className="lanc-fields-row">
+            <div className="field">
+              <label htmlFor="data-custo">Data</label>
+              <input
+                id="data-custo"
+                type="date"
+                value={dataCusto}
+                onChange={(e) => setDataCusto(e.target.value)}
+                required
+              />
+            </div>
+            <div className="field grow">
+              <label htmlFor="obs-custo">Observações (opcional)</label>
+              <textarea
+                id="obs-custo"
+                rows={2}
+                value={observacao}
+                onChange={(e) => setObservacao(e.target.value)}
+                placeholder="Nota livre — aparece na listagem e na Análise"
+              />
+            </div>
+          </div>
+
           {!editando && (
             <>
               <label className="lanc-check">
@@ -702,7 +747,8 @@ export function FormCusto({
 
           {editando && (
             <p className="lanc-muted">
-              Só é possível alterar quantidade, valor unitário
+              Só é possível alterar quantidade, valor unitário, data e
+              observações
               {isOutros ? ' e a descrição' : ''}. O tipo e o item do catálogo
               permanecem.
             </p>

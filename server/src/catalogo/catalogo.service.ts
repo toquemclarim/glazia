@@ -265,7 +265,9 @@ export class CatalogoService {
         linha, produto, cor, espessura, tipo_vidro, unidade_custo
       FROM ${table}
       WHERE ${filters.join(' AND ')}
-      ORDER BY tipo_custo, descricao
+      ORDER BY
+        CASE WHEN UPPER(BTRIM(descricao)) = 'GERAL' THEN 0 ELSE 1 END,
+        tipo_custo, descricao
       LIMIT 10000
     `,
       params,

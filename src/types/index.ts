@@ -109,6 +109,7 @@ export interface CustoEstoqueResumo {
   tipoCusto: string | null
   linha: string | null
   descricao: string
+  observacao?: string | null
   quantidade: number
   valorUnitario: number
   valor: number
@@ -126,6 +127,8 @@ export interface AtualizarCustoEstoquePayload {
   valorUnitario: number
   valor?: number
   descricao?: string
+  dataCusto?: string
+  observacao?: string
 }
 
 export interface ItemRentabilidade {

@@ -310,7 +310,7 @@ export function Landing() {
       </header>
 
       <main id="conteudo">
-        <section id="topo" className="lp-hero">
+        <section id="produto" className="lp-hero">
           <div className="lp-hero-inner">
             <div className="lp-hero-grid">
               <div className="lp-hero-copy lp-hero-in">

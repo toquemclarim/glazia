@@ -375,6 +375,7 @@ export function Analise() {
                         {' '}
                         {c.quantidade.toLocaleString('pt-BR')} ×{' '}
                         {formatCurrency(c.valorUnitario)}
+                        {c.observacao ? ` · ${c.observacao}` : ''}
                       </small>
                     </span>
                     <strong>{formatCurrency(c.valor)}</strong>

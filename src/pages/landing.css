@@ -95,7 +95,7 @@
   background: var(--lp-sand-200);
   color: var(--lp-ink);
   font-family: 'League Spartan', system-ui, sans-serif;
-  overflow-x: hidden;
+  overflow-x: clip;
   -webkit-font-smoothing: antialiased;
 }
 

@@ -26,6 +26,10 @@ import {
   tipoEfetivo,
   type TipoCorPrincipal,
 } from './cores-item';
+import {
+  montarObservacaoCusto,
+  parseObservacaoCusto,
+} from './custo-observacao';
 
 function todayIsoDate(): string {
   return new Date().toISOString().slice(0, 10);
@@ -62,14 +66,6 @@ function parseCtlProductId(idProduto: string | null): number {
   if (!idProduto?.startsWith('ctl_')) return 0;
   const n = Number(idProduto.slice(4));
   return Number.isFinite(n) ? n : 0;
-}
-
-function parseCatCustoId(observacao: string | null): number | null {
-  if (!observacao) return null;
-  const m = observacao.match(/cat_custo:(\d+)/);
-  if (!m) return null;
-  const n = Number(m[1]);
-  return Number.isFinite(n) ? n : null;
 }
 
 function likeContains(term: string): string {
@@ -594,9 +590,9 @@ export class LancamentosService {
     >();
     for (const c of custoRows) {
       if (!c.id_venda_item) continue;
-      const idCat = parseCatCustoId(c.observacao);
-      const descricao =
-        c.observacao?.split(' | ')[0]?.trim() || 'Custo da venda';
+      const parsedCusto = parseObservacaoCusto(c.observacao);
+      const idCat = parsedCusto.idCustoCatalogo;
+      const descricao = parsedCusto.descricao || 'Custo da venda';
       const list = gastosPorItem.get(c.id_venda_item) ?? [];
       const valor = Number(c.valor_total_custo ?? 0);
       const quantidade =
@@ -1237,15 +1233,20 @@ export class LancamentosService {
       valor: dto.valor ?? dto.quantidade * dto.valorUnitario,
     });
 
-    const idCat = parseCatCustoId(row.observacao) ?? 0;
-    const descricaoAtual =
-      row.observacao?.split(' | ')[0]?.trim() || 'Custo de estoque';
-    const descricao = (dto.descricao?.trim() || descricaoAtual).trim();
-    const partes = (row.observacao ?? '').split(' | ').map((p) => p.trim());
-    const resto = partes.slice(1).filter((p) => !/^cat_custo:\d+$/i.test(p));
-    const observacao = [descricao, ...resto, `cat_custo:${idCat}`]
-      .filter(Boolean)
-      .join(' | ');
+    const parsed = parseObservacaoCusto(row.observacao);
+    const descricao = (dto.descricao?.trim() || parsed.descricao).trim();
+    const observacaoLivre =
+      dto.observacao !== undefined
+        ? dto.observacao.trim() || null
+        : parsed.observacao;
+    const observacao = montarObservacaoCusto({
+      descricao,
+      espessura: parsed.espessura,
+      destino: parsed.destino,
+      observacao: observacaoLivre,
+      idCustoCatalogo: parsed.idCustoCatalogo,
+    });
+    const dataCusto = dto.dataCusto?.trim() || undefined;
 
     const agora = new Date().toISOString();
     const custos = this.db.table('fato_custos_operacionais');
@@ -1256,6 +1257,9 @@ export class LancamentosService {
         valor_unitario: valorUnitario,
         valor_total_custo: valorTotal,
         observacao,
+        ...(dataCusto
+          ? { data_emissao_nf: dataCusto, data_ocorrencia: dataCusto }
+          : {}),
         id_usuario_alteracao: auth.userId,
         alterado_em: agora,
       },
@@ -1337,8 +1341,8 @@ export class LancamentosService {
       r.valor_unitario != null && Number.isFinite(Number(r.valor_unitario))
         ? Number(r.valor_unitario)
         : valor / quantidade;
-    const descricao =
-      r.observacao?.split(' | ')[0]?.trim() || 'Custo de estoque';
+    const parsed = parseObservacaoCusto(r.observacao);
+    const descricao = parsed.descricao;
     const dataCusto = this.asDateString(r.data_emissao_nf);
     return {
       idCusto: r.id_custo,
@@ -1346,14 +1350,16 @@ export class LancamentosService {
       tipoCusto: r.tipo_custo,
       linha: r.linha_produto,
       descricao,
+      observacao: parsed.observacao,
       quantidade,
       valorUnitario,
       valor,
-      idCustoCatalogo: parseCatCustoId(r.observacao) ?? 0,
+      idCustoCatalogo: parsed.idCustoCatalogo,
       rotulo: [
         dataCusto ? dataCusto.split('-').reverse().join('/') : null,
         r.tipo_custo,
         descricao,
+        parsed.observacao,
         `R$ ${valor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
       ]
         .filter(Boolean)
@@ -1613,17 +1619,13 @@ export class LancamentosService {
     const { quantidade, valorUnitario, valorTotal } = valoresDoGasto(
       opts.gasto,
     );
-    const observacao = [
-      opts.gasto.descricao,
-      opts.gasto.espessura ? `espessura ${opts.gasto.espessura}` : null,
-      opts.destino === 'ESTOQUE' ? 'Destino: ESTOQUE' : null,
-      opts.destino === 'VENDA' ? 'Destino: VENDA' : null,
-      opts.destino === 'ITEM_VENDA' ? 'Destino: ITEM_VENDA' : null,
-      opts.observacaoExtra,
-      `cat_custo:${opts.gasto.idCustoCatalogo}`,
-    ]
-      .filter(Boolean)
-      .join(' | ');
+    const observacao = montarObservacaoCusto({
+      descricao: opts.gasto.descricao,
+      espessura: opts.gasto.espessura,
+      destino: opts.destino,
+      observacao: opts.observacaoExtra,
+      idCustoCatalogo: opts.gasto.idCustoCatalogo,
+    });
 
     return {
       id_custo: `cst_${randomUUID().replace(/-/g, '')}`,
