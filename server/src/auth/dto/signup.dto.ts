@@ -1,9 +1,13 @@
+import { Type } from 'class-transformer';
 import {
   Equals,
   IsBoolean,
   IsEmail,
+  IsInt,
   IsOptional,
   IsString,
+  Max,
+  Min,
   MinLength,
 } from 'class-validator';
 
@@ -45,4 +49,11 @@ export class SignupDto {
   @IsBoolean()
   @Equals(true, { message: 'É necessário aceitar os Termos de Uso' })
   aceitouTermos!: boolean;
+
+  /** Dia em que o mês da análise começa (1 = calendário). */
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(28)
+  diaInicioPeriodo!: number;
 }

@@ -76,6 +76,7 @@ export class UsuariosStore implements OnModuleInit {
     trialInicio: string | null;
     trialFim: string | null;
     nomeFantasia: string;
+    diaInicioPeriodo: number;
   } | null> {
     const [row] = await this.db.query<{
       status_assinatura: string;
@@ -83,6 +84,7 @@ export class UsuariosStore implements OnModuleInit {
       trial_inicio: Date | string | null;
       trial_fim: Date | string | null;
       nome_fantasia: string;
+      dia_inicio_periodo: number | null;
     }>(
       `
       SELECT
@@ -90,7 +92,8 @@ export class UsuariosStore implements OnModuleInit {
         plano_assinatura,
         trial_inicio,
         trial_fim,
-        nome_fantasia
+        nome_fantasia,
+        dia_inicio_periodo
       FROM ${this.db.table('dim_empresa')}
       WHERE id_empresa = @empresaId
       LIMIT 1
@@ -98,6 +101,7 @@ export class UsuariosStore implements OnModuleInit {
       { empresaId },
     );
     if (!row) return null;
+    const dia = Number(row.dia_inicio_periodo);
     return {
       statusAssinatura: row.status_assinatura,
       planoAssinatura: row.plano_assinatura,
@@ -112,6 +116,8 @@ export class UsuariosStore implements OnModuleInit {
           : String(row.trial_fim)
         : null,
       nomeFantasia: row.nome_fantasia,
+      diaInicioPeriodo:
+        Number.isInteger(dia) && dia >= 1 && dia <= 28 ? dia : 1,
     };
   }
 

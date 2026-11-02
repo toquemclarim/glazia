@@ -22,16 +22,19 @@ import {
   formatMonthLabel,
   textoSemCodigoInterno,
 } from '../utils/format'
+import {
+  formatDiaCurto,
+  mesAtualComercial,
+  normalizarDiaInicio,
+  rotuloComPeriodo,
+  rotuloPeriodo,
+} from '../utils/periodo'
 import { rotuloTipoCor } from '../utils/coresVenda'
 
 const BRONZE = '#c9a06a'
 const BRONZE_DEEP = '#8a7355'
 const SUCCESS = '#2d9f6f'
 const DANGER = '#c45c4a'
-
-function currentMonth() {
-  return new Date().toISOString().slice(0, 7)
-}
 
 /** 6 meses passados + atual + 6 futuros (ordem cronológica). */
 function monthOptions() {
@@ -82,8 +85,9 @@ function ChartTooltip({
 export function Analise() {
   const { error: authError, usuario } = useApp()
   const { theme } = useTheme()
+  const diaInicio = normalizarDiaInicio(usuario?.diaInicioPeriodo)
   const meses = useMemo(() => monthOptions(), [])
-  const [mes, setMes] = useState(currentMonth())
+  const [mes, setMes] = useState(() => mesAtualComercial(diaInicio))
   const [painel, setPainel] = useState<PainelSocios | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -194,6 +198,10 @@ export function Analise() {
   const fluxoCaixa = painel?.fluxoCaixa
   const contasAReceber = painel?.contasAReceber
   const ehProjecao = Boolean(visaoMes?.ehProjecao)
+  const mesAtual = painel?.periodo?.mesAtual ?? mesAtualComercial(diaInicio)
+  const rotuloMes = painel?.periodo
+    ? rotuloComPeriodo(painel.mes, painel.periodo)
+    : rotuloPeriodo(mes, diaInicio)
 
   const confrontoData = [
     { nome: 'Faturamento', valor: resultado?.faturamento ?? 0, fill: SUCCESS },
@@ -239,11 +247,11 @@ export function Analise() {
               onChange={(event) => setMes(event.target.value)}
             >
               {meses.map((item) => {
-                const futuro = item > currentMonth()
+                const futuro = item > mesAtual
                 return (
                   <option key={item} value={item}>
-                    {capitalize(formatMonthLabel(item))}
-                    {futuro ? ' · projeção' : item === currentMonth() ? ' · atual' : ''}
+                    {rotuloPeriodo(item, diaInicio)}
+                    {futuro ? ' · projeção' : item === mesAtual ? ' · atual' : ''}
                   </option>
                 )
               })}
@@ -271,7 +279,7 @@ export function Analise() {
               Projeção
             </p>
             <h2>
-              {capitalize(formatMonthLabel(mes))} ainda não aconteceu
+              {rotuloMes} ainda não começou
             </h2>
             <p>
               Números abaixo são uma projeção com base em contas a receber
@@ -324,10 +332,17 @@ export function Analise() {
                   : 'Mês não rentável'}
             </h2>
             <p>
-              Baseado no que foi <strong>vendido</strong> em{' '}
-              {capitalize(formatMonthLabel(mes))} (data da venda). Sem venda no
-              mês, o resultado operacional pode ficar negativo — mesmo que o
-              caixa esteja positivo.
+              Baseado no que foi <strong>vendido</strong>{' '}
+              {painel?.periodo && painel.periodo.diaInicio > 1 ? (
+                <>
+                  de {formatDiaCurto(painel.periodo.inicio)} a{' '}
+                  {formatDiaCurto(painel.periodo.fim)} (data da venda).
+                </>
+              ) : (
+                <>em {capitalize(formatMonthLabel(mes))} (data da venda).</>
+              )}{' '}
+              Sem venda no mês, o resultado operacional pode ficar negativo —
+              mesmo que o caixa esteja positivo.
             </p>
           </header>
           <div className="analise-bloco-valor">

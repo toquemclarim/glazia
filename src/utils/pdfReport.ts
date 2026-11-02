@@ -1,6 +1,7 @@
 import type { jsPDF } from 'jspdf'
 import type { PainelSocios } from '../types'
-import { capitalize, formatCurrency, formatMonthLabel } from './format'
+import { formatCurrency } from './format'
+import { rotuloComPeriodo } from './periodo'
 
 /** Identidade Glazia para impressão (modo claro) */
 const C = {
@@ -33,8 +34,8 @@ export type PdfReportOptions = {
   empresaNome?: string | null
 }
 
-function mesLabel(mes: string) {
-  return capitalize(formatMonthLabel(mes))
+function mesLabel(painel: PainelSocios) {
+  return rotuloComPeriodo(painel.mes, painel.periodo)
 }
 
 function money(v: number) {
@@ -822,7 +823,7 @@ export async function gerarRelatorioPdf(
     visaoMes,
   } = painel
 
-  const periodo = mesLabel(painel.mes)
+  const periodo = mesLabel(painel)
   const empresaNome =
     options.empresaNome?.trim() || 'Sua vidraçaria'
   const geradoEm = new Date().toLocaleString('pt-BR', {

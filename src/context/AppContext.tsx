@@ -32,6 +32,7 @@ interface AppState {
   isPlatform: boolean
   logout: () => void
   aplicarSessao: (accessToken: string, usuario: Usuario) => void
+  atualizarUsuario: (partial: Partial<Usuario>) => void
   navigateWithLoading: (navigate: () => void) => void
   /** Diretor e Sócio — análise financeira. */
   podeAnalisar: boolean
@@ -155,6 +156,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setUsuario(user)
   }, [])
 
+  const atualizarUsuario = useCallback((partial: Partial<Usuario>) => {
+    setUsuario((prev) => (prev ? { ...prev, ...partial } : prev))
+  }, [])
+
   const navigateWithLoading = useCallback((navigate: () => void) => {
     setLoading(true)
     setTimeout(() => {
@@ -178,6 +183,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       signup,
       logout,
       aplicarSessao,
+      atualizarUsuario,
       navigateWithLoading,
       podeAnalisar: usuario ? cargoPermiteAnalise(usuario.cargo) : false,
       podeOperar: usuario ? cargoPermiteOperar(usuario.cargo) : false,
@@ -205,6 +211,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     signup,
     logout,
     aplicarSessao,
+    atualizarUsuario,
     navigateWithLoading,
   ])
 

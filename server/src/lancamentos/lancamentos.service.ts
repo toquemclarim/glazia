@@ -7,6 +7,11 @@ import { randomUUID } from 'node:crypto';
 import type { AuthContext } from '../auth/auth-context';
 import { assertAnalista, assertConsultaVendas, assertOperador } from '../auth/roles';
 import { DatabaseService, type Queryable } from '../database/database.service';
+import {
+  carregarDiaInicioPeriodo,
+  mesAtualComercial,
+  periodoDoMes,
+} from '../periodo/periodo';
 import type {
   AtualizarCustoEstoqueDto,
   AtualizarVendaDto,
@@ -70,22 +75,6 @@ function parseCtlProductId(idProduto: string | null): number {
 
 function likeContains(term: string): string {
   return `%${term.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
-}
-
-function currentMonthLocal(): string {
-  const now = new Date();
-  const month = String(now.getUTCMonth() + 1).padStart(2, '0');
-  return `${now.getUTCFullYear()}-${month}`;
-}
-
-function monthRangeLocal(mes: string): { mesInicio: string; mesFim: string } {
-  const [year, month] = mes.split('-').map(Number);
-  const inicio = new Date(Date.UTC(year, month - 1, 1));
-  const fim = new Date(Date.UTC(year, month, 1));
-  return {
-    mesInicio: inicio.toISOString().slice(0, 10),
-    mesFim: fim.toISOString().slice(0, 10),
-  };
 }
 
 const STATUS_RECEBIDO = new Set(['RECEBIDO', 'REALIZADO', 'PAGO']);
@@ -1181,8 +1170,13 @@ export class LancamentosService {
     const custos = this.db.table('fato_custos_operacionais');
     const vendas = this.db.table('fato_venda');
     const clientes = this.db.table('dim_cliente');
-    const mes = query.mes?.trim() || currentMonthLocal();
-    const { mesInicio, mesFim } = monthRangeLocal(mes);
+    const dia = await carregarDiaInicioPeriodo(this.db, auth.empresaId);
+    const periodo = periodoDoMes(
+      query.mes?.trim() || mesAtualComercial(dia),
+      dia,
+    );
+    const mes = periodo.mes;
+    const { mesInicio, mesFim } = periodo;
     const search = query.q?.trim() ?? '';
     const vinculo = query.vinculo ?? 'todos';
     const params: Record<string, unknown> = {

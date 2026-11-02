@@ -1,5 +1,5 @@
 import type { PainelSocios } from '../types'
-import { capitalize, formatMonthLabel } from './format'
+import { rotuloComPeriodo } from './periodo'
 
 function downloadBlob(filename: string, blob: Blob) {
   const url = URL.createObjectURL(blob)
@@ -10,8 +10,8 @@ function downloadBlob(filename: string, blob: Blob) {
   URL.revokeObjectURL(url)
 }
 
-function mesLabel(mes: string) {
-  return capitalize(formatMonthLabel(mes))
+function mesLabel(painel: PainelSocios) {
+  return rotuloComPeriodo(painel.mes, painel.periodo)
 }
 
 export async function exportarPainelExcel(painel: PainelSocios) {
@@ -21,7 +21,13 @@ export async function exportarPainelExcel(painel: PainelSocios) {
   const workbook = XLSX.utils.book_new()
 
   const resumo = [
-    ['Mês', mesLabel(painel.mes)],
+    ['Mês', mesLabel(painel)],
+    ...(painel.periodo
+      ? [
+          ['De', painel.periodo.inicio],
+          ['Até', painel.periodo.fim],
+        ]
+      : []),
     ['Faturamento', resultado.faturamento],
     ['Custos variáveis', resultado.custosVariaveis],
     ['Custos fixos', resultado.custosFixos],

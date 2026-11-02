@@ -59,6 +59,8 @@ export interface Usuario {
   trialDiasRestantes?: number | null
   /** Empresa inativa/suspensa/cancelada — autentica, mas não opera. */
   empresaBloqueada?: boolean
+  /** Dia em que o mês da análise começa (1 = calendário). Vale para a empresa. */
+  diaInicioPeriodo?: number
 }
 
 export interface UsuarioEquipe {
@@ -309,8 +311,19 @@ export interface ProjecaoMetas {
   regraMeta: string
 }
 
+export interface PeriodoComercial {
+  /** Primeiro dia incluído (YYYY-MM-DD). */
+  inicio: string
+  /** Último dia incluído (YYYY-MM-DD). */
+  fim: string
+  diaInicio: number
+  /** YYYY-MM do período comercial que contém hoje. */
+  mesAtual: string
+}
+
 export interface PainelSocios {
   mes: string
+  periodo?: PeriodoComercial
   resultado: ResultadoMensal
   rentabilidade: Rentabilidade
   custosFixos: CustosFixos

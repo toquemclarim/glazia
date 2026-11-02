@@ -18,6 +18,7 @@ import { DatabaseService } from '../database/database.service';
 import { DespesasFixasService } from '../despesas-fixas/despesas-fixas.service';
 import type { AuthContext, JwtPayload } from './auth-context';
 import type { SignupDto } from './dto/signup.dto';
+import { normalizarDiaInicio } from '../periodo/periodo';
 import { hashPassword, verifyPassword } from './password.util';
 import { UsuariosStore, type UsuarioAuthRow } from './usuarios.store';
 
@@ -83,11 +84,12 @@ export class AuthService {
       INSERT INTO ${this.db.table('dim_empresa')} (
         id_empresa, nome_fantasia, razao_social, cnpj, plano_assinatura,
         data_onboarding, status_assinatura, contato_nome, contato_email,
-        contato_telefone, trial_inicio, trial_fim, criado_em, alterado_em
+        contato_telefone, trial_inicio, trial_fim, dia_inicio_periodo,
+        criado_em, alterado_em
       ) VALUES (
         @idEmpresa, @nome, @razao, @cnpj, 'TRIAL',
         CURRENT_DATE, 'trial', @contatoNome, @contatoEmail,
-        @telefone, @trialInicio, @trialFim, now(), NULL
+        @telefone, @trialInicio, @trialFim, @diaInicio, now(), NULL
       )
     `,
       {
@@ -100,6 +102,7 @@ export class AuthService {
         telefone,
         trialInicio: inicio.toISOString(),
         trialFim: fim.toISOString(),
+        diaInicio: normalizarDiaInicio(dto.diaInicioPeriodo),
       },
     );
 
@@ -228,6 +231,28 @@ export class AuthService {
     };
   }
 
+  /** Preferência da empresa. Qualquer usuário autenticado pode alterar. */
+  async alterarDiaInicioPeriodo(empresaId: string, diaInicioPeriodo: number) {
+    const dia = normalizarDiaInicio(diaInicioPeriodo);
+    if (dia !== diaInicioPeriodo) {
+      throw new BadRequestException('Escolha um dia entre 1 e 28');
+    }
+    const [row] = await this.db.query<{ dia_inicio_periodo: number }>(
+      `
+      UPDATE ${this.db.table('dim_empresa')}
+      SET dia_inicio_periodo = @dia,
+          alterado_em = now()
+      WHERE id_empresa = @empresaId
+      RETURNING dia_inicio_periodo
+    `,
+      { empresaId, dia },
+    );
+    if (!row) {
+      throw new BadRequestException('Empresa não encontrada');
+    }
+    return { diaInicioPeriodo: Number(row.dia_inicio_periodo) };
+  }
+
   async changeEmail(userId: string, novoEmail: string, senhaAtual: string) {
     const user = await this.usuariosStore.findById(userId);
     if (!user || !verifyPassword(senhaAtual, user.senha_hash)) {
@@ -318,6 +343,7 @@ export class AuthService {
       trialInicio: string | null;
       trialFim: string | null;
       nomeFantasia: string;
+      diaInicioPeriodo: number;
     } | null,
   ) {
     const status = assinatura?.statusAssinatura ?? 'ativa';
@@ -342,6 +368,7 @@ export class AuthService {
       trialDiasRestantes:
         status === 'trial' ? diasRestantesTrial(trialFim) : null,
       empresaBloqueada: empresaBloqueada(status),
+      diaInicioPeriodo: assinatura?.diaInicioPeriodo ?? 1,
     };
   }
 }

@@ -9,7 +9,11 @@ import { AllowInactive } from './allow-inactive.decorator';
 import type { AuthContext } from './auth-context';
 import { AuthService } from './auth.service';
 import { CurrentAuth } from './current-auth.decorator';
-import { AlterarEmailDto, AlterarSenhaDto } from './dto/conta.dto';
+import {
+  AlterarEmailDto,
+  AlterarPeriodoDto,
+  AlterarSenhaDto,
+} from './dto/conta.dto';
 
 @Controller('conta')
 export class ContaController {
@@ -38,6 +42,17 @@ export class ContaController {
       auth.userId,
       body.senhaAtual,
       body.senhaNova,
+    );
+  }
+
+  @Patch('periodo')
+  alterarPeriodo(
+    @CurrentAuth() auth: AuthContext,
+    @Body() body: AlterarPeriodoDto,
+  ) {
+    return this.authService.alterarDiaInicioPeriodo(
+      auth.empresaId,
+      body.diaInicioPeriodo,
     );
   }
 

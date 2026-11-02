@@ -1,5 +1,6 @@
 import type { PainelSocios } from '../types'
-import { capitalize, formatCurrency, formatMonthLabel } from './format'
+import { formatCurrency } from './format'
+import { rotuloComPeriodo, rotuloPeriodo } from './periodo'
 
 export type ChatIntentId =
   | 'resumo'
@@ -416,8 +417,13 @@ function money(v: number) {
   return formatCurrency(v)
 }
 
-function mesLabel(mes: string) {
-  return capitalize(formatMonthLabel(mes))
+function mesLabel(
+  mes: string,
+  diaInicio = 1,
+  periodo?: Parameters<typeof rotuloComPeriodo>[1],
+) {
+  if (periodo && periodo.diaInicio > 1) return rotuloComPeriodo(mes, periodo)
+  return rotuloPeriodo(mes, diaInicio)
 }
 
 function saudeNota(painel: PainelSocios): number {
@@ -455,7 +461,8 @@ export function answerFromPainel(
   intent: ChatIntentId,
   painel: PainelSocios,
 ): string {
-  const mes = mesLabel(painel.mes)
+  const diaInicio = painel.periodo?.diaInicio ?? 1
+  const mes = mesLabel(painel.mes, diaInicio, painel.periodo)
   const r = painel.resultado
   const fluxo = painel.fluxoCaixa
   const receber = painel.contasAReceber
@@ -753,7 +760,7 @@ export function answerFromPainel(
 
     case 'projecao':
       return [
-        `Projeção a partir de ${mes} → ${mesLabel(proj.mesProjecao)}:`,
+        `Projeção a partir de ${mes} → ${mesLabel(proj.mesProjecao, diaInicio)}:`,
         `• Entradas previstas: ${money(proj.entradasPrevistas)}`,
         `• Custos fixos previstos: ${money(proj.custosFixosPrevistos)}`,
         `• Cobre os fixos? ${proj.cobreCustosFixos ? 'Sim' : 'Não'}`,

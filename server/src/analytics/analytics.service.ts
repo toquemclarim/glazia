@@ -7,33 +7,13 @@ import { randomUUID } from 'node:crypto';
 import type { AuthContext } from '../auth/auth-context';
 import { DatabaseService } from '../database/database.service';
 import { parseObservacaoCusto } from '../lancamentos/custo-observacao';
-
-function currentMonthUtc(): string {
-  const now = new Date();
-  const month = String(now.getUTCMonth() + 1).padStart(2, '0');
-  return `${now.getUTCFullYear()}-${month}`;
-}
-
-function nextMonth(mes: string): string {
-  const [year, month] = mes.split('-').map(Number);
-  const date = new Date(Date.UTC(year, month - 1, 1));
-  date.setUTCMonth(date.getUTCMonth() + 1);
-  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}`;
-}
-
-/**
- * Competência como intervalo [início, fim) em vez de formatar a data em texto:
- * o filtro passa a usar os índices por data das tabelas de fato.
- */
-function monthRange(mes: string): { mesInicio: string; mesFim: string } {
-  const [year, month] = mes.split('-').map(Number);
-  const inicio = new Date(Date.UTC(year, month - 1, 1));
-  const fim = new Date(Date.UTC(year, month, 1));
-  return {
-    mesInicio: inicio.toISOString().slice(0, 10),
-    mesFim: fim.toISOString().slice(0, 10),
-  };
-}
+import {
+  carregarDiaInicioPeriodo,
+  mesAtualComercial,
+  nextMonth,
+  periodoDoMes,
+  type PeriodoMes,
+} from '../periodo/periodo';
 
 /** Remove códigos internos (vnd_, ctl_, etc.) de textos exibidos na UI. */
 function textoAmigavelFinanceiro(
@@ -73,11 +53,32 @@ function novoIdFluxo(): string {
 export class AnalyticsService {
   constructor(private readonly db: DatabaseService) {}
 
+  /** Uma leitura do dia de corte por chamada pública; o painel repassa o dia. */
+  private async periodoDaEmpresa(
+    empresaId: string,
+    mes?: string,
+    diaInicio?: number,
+  ): Promise<PeriodoMes> {
+    const dia =
+      diaInicio ?? (await carregarDiaInicioPeriodo(this.db, empresaId));
+    return periodoDoMes(mes?.trim() || mesAtualComercial(dia), dia);
+  }
+
   /**
    * Resultado do mês: ganhando/perdendo/lucrando.
    * Receita = SUM(fato_venda_item.valor_total_item) de vendas não canceladas.
    */
-  async resultadoMensal(empresaId: string, mes = currentMonthUtc()) {
+  async resultadoMensal(
+    empresaId: string,
+    mesInformado?: string,
+    diaInicio?: number,
+  ) {
+    const periodo = await this.periodoDaEmpresa(
+      empresaId,
+      mesInformado,
+      diaInicio,
+    );
+    const mes = periodo.mes;
     const itens = this.db.table('fato_venda_item');
     const vendas = this.db.table('fato_venda');
     const custos = this.db.table('fato_custos_operacionais');
@@ -138,7 +139,11 @@ export class AnalyticsService {
       margem_contribuicao: number;
       lucro_operacional: number;
       margem_percentual: number | null;
-    }>(sql, { empresaId, ...monthRange(mes) });
+    }>(sql, {
+      empresaId,
+      mesInicio: periodo.mesInicio,
+      mesFim: periodo.mesFim,
+    });
 
     const lucro = Number(row?.lucro_operacional ?? 0);
     const custosVariaveis = Number(row?.custos_variaveis ?? 0);
@@ -146,7 +151,7 @@ export class AnalyticsService {
 
     const custosEstoqueMes = await this.listarCustosEstoqueDoMes(
       empresaId,
-      mes,
+      periodo,
     );
 
     return {
@@ -166,9 +171,12 @@ export class AnalyticsService {
   }
 
   /** Lista compacta de custos de estoque do mês (para o card da Análise). */
-  private async listarCustosEstoqueDoMes(empresaId: string, mes: string) {
+  private async listarCustosEstoqueDoMes(
+    empresaId: string,
+    periodo: PeriodoMes,
+  ) {
     const custos = this.db.table('fato_custos_operacionais');
-    const range = monthRange(mes);
+    const range = periodo;
     const rows = await this.db.query<{
       id_custo: string;
       data_emissao_nf: string | null;
@@ -220,7 +228,17 @@ export class AnalyticsService {
   }
 
   /** Rentabilidade por produto e por linha (snapshot no item). */
-  async rentabilidadeProdutos(empresaId: string, mes = currentMonthUtc()) {
+  async rentabilidadeProdutos(
+    empresaId: string,
+    mesInformado?: string,
+    diaInicio?: number,
+  ) {
+    const periodo = await this.periodoDaEmpresa(
+      empresaId,
+      mesInformado,
+      diaInicio,
+    );
+    const mes = periodo.mes;
     const itens = this.db.table('fato_venda_item');
     const vendas = this.db.table('fato_venda');
     const custos = this.db.table('fato_custos_operacionais');
@@ -284,7 +302,11 @@ export class AnalyticsService {
       lucro: number;
       quantidade: number;
       qtd_vendas: number;
-    }>(sql, { empresaId, ...monthRange(mes) });
+    }>(sql, {
+      empresaId,
+      mesInicio: periodo.mesInicio,
+      mesFim: periodo.mesFim,
+    });
 
     const porProduto = rows.map((row) => ({
       produto: row.produto,
@@ -327,8 +349,15 @@ export class AnalyticsService {
       (a, b) => b.lucro - a.lucro,
     );
 
-    const porCliente = await this.rentabilidadeClientes(empresaId, mes);
-    const { mixPorTipo, mixPorSlot } = await this.mixCoresVenda(empresaId, mes);
+    const porCliente = await this.rentabilidadeClientes(
+      empresaId,
+      mes,
+      periodo.diaInicio,
+    );
+    const { mixPorTipo, mixPorSlot } = await this.mixCoresVenda(
+      empresaId,
+      periodo,
+    );
 
     return {
       mes,
@@ -345,10 +374,10 @@ export class AnalyticsService {
   }
 
   /** Mix de cores informadas (NULL não entra no recorte do slot). */
-  private async mixCoresVenda(empresaId: string, mes: string) {
+  private async mixCoresVenda(empresaId: string, periodo: PeriodoMes) {
     const itens = this.db.table('fato_venda_item');
     const vendas = this.db.table('fato_venda');
-    const range = monthRange(mes);
+    const range = periodo;
     const filtro = `
       i.id_empresa = @empresaId
       AND i.data_venda >= @mesInicio AND i.data_venda < @mesFim
@@ -431,7 +460,17 @@ export class AnalyticsService {
   }
 
   /** Lucro por cliente no mês (receita da venda − custos vinculados à venda). */
-  async rentabilidadeClientes(empresaId: string, mes = currentMonthUtc()) {
+  async rentabilidadeClientes(
+    empresaId: string,
+    mesInformado?: string,
+    diaInicio?: number,
+  ) {
+    const periodo = await this.periodoDaEmpresa(
+      empresaId,
+      mesInformado,
+      diaInicio,
+    );
+    const mes = periodo.mes;
     const itens = this.db.table('fato_venda_item');
     const vendas = this.db.table('fato_venda');
     const clientes = this.db.table('dim_cliente');
@@ -487,7 +526,11 @@ export class AnalyticsService {
       ORDER BY lucro DESC
       LIMIT 20
     `,
-      { empresaId, ...monthRange(mes) },
+      {
+        empresaId,
+        mesInicio: periodo.mesInicio,
+        mesFim: periodo.mesFim,
+      },
     );
 
     return rows.map((row) => ({
@@ -504,8 +547,15 @@ export class AnalyticsService {
   async quantidadeProduto(
     empresaId: string,
     produto: string,
-    mes = currentMonthUtc(),
+    mesInformado?: string,
+    diaInicio?: number,
   ) {
+    const periodo = await this.periodoDaEmpresa(
+      empresaId,
+      mesInformado,
+      diaInicio,
+    );
+    const mes = periodo.mes;
     const itens = this.db.table('fato_venda_item');
     const vendas = this.db.table('fato_venda');
     const produtos = this.db.table('dim_produto');
@@ -536,7 +586,12 @@ export class AnalyticsService {
       quantidade: number;
       qtd_vendas: number;
       faturamento: number;
-    }>(sql, { empresaId, produto, ...monthRange(mes) });
+    }>(sql, {
+      empresaId,
+      produto,
+      mesInicio: periodo.mesInicio,
+      mesFim: periodo.mesFim,
+    });
 
     return {
       mes,
@@ -556,7 +611,17 @@ export class AnalyticsService {
   }
 
   /** Custos fixos vigentes (cadastro com vigência) + vencimentos do mês no fluxo. */
-  async custosFixos(empresaId: string, mes = currentMonthUtc()) {
+  async custosFixos(
+    empresaId: string,
+    mesInformado?: string,
+    diaInicio?: number,
+  ) {
+    const periodo = await this.periodoDaEmpresa(
+      empresaId,
+      mesInformado,
+      diaInicio,
+    );
+    const mes = periodo.mes;
     const cadastro = this.db.table('cad_despesa_fixa');
     const plano = this.db.table('dim_plano_contas');
     const fluxo = this.db.table('fato_fluxo_caixa');
@@ -605,7 +670,7 @@ export class AnalyticsService {
       ORDER BY f.data_vencimento
     `;
 
-    const range = monthRange(mes);
+    const range = periodo;
 
     const [cadastros, movimentos] = await Promise.all([
       this.db.query<{
@@ -672,7 +737,17 @@ export class AnalyticsService {
   }
 
   /** Contas a vencer (qualquer tipo) em um mês — só em aberto. */
-  async contasAVencer(empresaId: string, mes = currentMonthUtc()) {
+  async contasAVencer(
+    empresaId: string,
+    mesInformado?: string,
+    diaInicio?: number,
+  ) {
+    const periodo = await this.periodoDaEmpresa(
+      empresaId,
+      mesInformado,
+      diaInicio,
+    );
+    const mes = periodo.mes;
     const fluxo = this.db.table('fato_fluxo_caixa');
     const plano = this.db.table('dim_plano_contas');
 
@@ -705,7 +780,11 @@ export class AnalyticsService {
       tipo_conta: string;
       categoria: string | null;
       subcategoria: string | null;
-    }>(sql, { empresaId, ...monthRange(mes) });
+    }>(sql, {
+      empresaId,
+      mesInicio: periodo.mesInicio,
+      mesFim: periodo.mesFim,
+    });
 
     return {
       mes,
@@ -806,7 +885,17 @@ export class AnalyticsService {
    * Contas a receber do mês (entradas): previstas e já recebidas.
    * Usado na Análise para o diretor confirmar o caixa.
    */
-  async contasAReceber(empresaId: string, mes = currentMonthUtc()) {
+  async contasAReceber(
+    empresaId: string,
+    mesInformado?: string,
+    diaInicio?: number,
+  ) {
+    const periodo = await this.periodoDaEmpresa(
+      empresaId,
+      mesInformado,
+      diaInicio,
+    );
+    const mes = periodo.mes;
     const fluxo = this.db.table('fato_fluxo_caixa');
     const vendas = this.db.table('fato_venda');
     const clientes = this.db.table('dim_cliente');
@@ -852,7 +941,11 @@ export class AnalyticsService {
         f.data_vencimento,
         f.id_transacao
     `,
-      { empresaId, ...monthRange(mes) },
+      {
+        empresaId,
+        mesInicio: periodo.mesInicio,
+        mesFim: periodo.mesFim,
+      },
     );
 
     const itens = rows.map((row) => {
@@ -900,9 +993,19 @@ export class AnalyticsService {
    * Fluxo de caixa do mês — independente da DRE (faturamento por data_venda).
    * Entradas/saídas pelo vencimento (previsto) e pelo pagamento (realizado).
    */
-  async fluxoCaixaMensal(empresaId: string, mes = currentMonthUtc()) {
+  async fluxoCaixaMensal(
+    empresaId: string,
+    mesInformado?: string,
+    diaInicio?: number,
+  ) {
+    const periodo = await this.periodoDaEmpresa(
+      empresaId,
+      mesInformado,
+      diaInicio,
+    );
+    const mes = periodo.mes;
     const fluxo = this.db.table('fato_fluxo_caixa');
-    const range = monthRange(mes);
+    const range = periodo;
 
     const [row] = await this.db.query<{
       entradas_previstas: number;
@@ -1115,12 +1218,28 @@ export class AnalyticsService {
    */
   async projecaoEMetas(
     empresaId: string,
-    mesReferencia = currentMonthUtc(),
+    mesInformado?: string,
     margemSeguranca = 0.2,
+    diaInicio?: number,
   ) {
+    const periodo = await this.periodoDaEmpresa(
+      empresaId,
+      mesInformado,
+      diaInicio,
+    );
+    const mesReferencia = periodo.mes;
     const mesProjecao = nextMonth(mesReferencia);
-    const resultadoAtual = await this.resultadoMensal(empresaId, mesReferencia);
-    const custosFixosProximo = await this.custosFixos(empresaId, mesProjecao);
+    const periodoProjecao = periodoDoMes(mesProjecao, periodo.diaInicio);
+    const resultadoAtual = await this.resultadoMensal(
+      empresaId,
+      mesReferencia,
+      periodo.diaInicio,
+    );
+    const custosFixosProximo = await this.custosFixos(
+      empresaId,
+      mesProjecao,
+      periodo.diaInicio,
+    );
 
     const fluxo = this.db.table('fato_fluxo_caixa');
 
@@ -1135,7 +1254,11 @@ export class AnalyticsService {
 
     const [entradasRow] = await this.db.query<{
       entradas_previstas: number;
-    }>(sqlEntradas, { empresaId, ...monthRange(mesProjecao) });
+    }>(sqlEntradas, {
+      empresaId,
+      mesInicio: periodoProjecao.mesInicio,
+      mesFim: periodoProjecao.mesFim,
+    });
 
     const entradasPrevistas = Number(entradasRow?.entradas_previstas ?? 0);
     const custosFixos = custosFixosProximo.totalPrevisto;
@@ -1160,8 +1283,11 @@ export class AnalyticsService {
   }
 
   /** Painel consolidado para reunião com sócios. */
-  async painelSocios(empresaId: string, mes = currentMonthUtc()) {
-    const mesAtual = currentMonthUtc();
+  async painelSocios(empresaId: string, mesInformado?: string) {
+    const dia = await carregarDiaInicioPeriodo(this.db, empresaId);
+    const mesAtual = mesAtualComercial(dia);
+    const periodo = periodoDoMes(mesInformado?.trim() || mesAtual, dia);
+    const mes = periodo.mes;
     const ehProjecao = mes > mesAtual;
 
     const [
@@ -1173,15 +1299,15 @@ export class AnalyticsService {
       fluxoCaixa,
       contasAReceber,
     ] = await Promise.all([
-      this.resultadoMensal(empresaId, mes),
-      this.rentabilidadeProdutos(empresaId, mes),
-      this.custosFixos(empresaId, mes),
-      this.projecaoEMetas(empresaId, mes),
+      this.resultadoMensal(empresaId, mes, dia),
+      this.rentabilidadeProdutos(empresaId, mes, dia),
+      this.custosFixos(empresaId, mes, dia),
+      this.projecaoEMetas(empresaId, mes, 0.2, dia),
       ehProjecao
-        ? this.resultadoMensal(empresaId, mesAtual)
+        ? this.resultadoMensal(empresaId, mesAtual, dia)
         : Promise.resolve(null),
-      this.fluxoCaixaMensal(empresaId, mes),
-      this.contasAReceber(empresaId, mes),
+      this.fluxoCaixaMensal(empresaId, mes, dia),
+      this.contasAReceber(empresaId, mes, dia),
     ]);
 
     const custosFixosVigentes = Number(
@@ -1204,6 +1330,12 @@ export class AnalyticsService {
 
     return {
       mes,
+      periodo: {
+        inicio: periodo.mesInicio,
+        fim: periodo.fim,
+        diaInicio: periodo.diaInicio,
+        mesAtual,
+      },
       resultado,
       rentabilidade,
       custosFixos,

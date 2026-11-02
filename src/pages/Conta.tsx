@@ -1,7 +1,14 @@
-import { Check, Eye, EyeOff, Loader2, Lock, Mail, Shield } from 'lucide-react'
+import { CalendarRange, Check, Eye, EyeOff, Loader2, Lock, Mail, Shield } from 'lucide-react'
 import { useEffect, useState, type FormEvent } from 'react'
-import { alterarEmailConta, alterarSenhaConta } from '../services/api'
+import { CorteMesField } from '../components/CorteMesField'
+import { alterarEmailConta, alterarPeriodoMes, alterarSenhaConta } from '../services/api'
 import { useApp } from '../context/AppContext'
+import {
+  diaDaEscolha,
+  escolhaDoDia,
+  normalizarDiaInicio,
+  type CorteEscolha,
+} from '../utils/periodo'
 
 function PasswordField({
   id,
@@ -47,7 +54,13 @@ function PasswordField({
 }
 
 export function Conta() {
-  const { usuario, aplicarSessao } = useApp()
+  const { usuario, aplicarSessao, atualizarUsuario } = useApp()
+  const inicial = escolhaDoDia(normalizarDiaInicio(usuario?.diaInicioPeriodo))
+  const [corte, setCorte] = useState<CorteEscolha>(inicial.escolha)
+  const [outroDia, setOutroDia] = useState(inicial.outro)
+  const [salvandoCorte, setSalvandoCorte] = useState(false)
+  const [okCorte, setOkCorte] = useState<string | null>(null)
+  const [erroCorte, setErroCorte] = useState<string | null>(null)
 
   const [senhaAtual, setSenhaAtual] = useState('')
   const [senhaNova, setSenhaNova] = useState('')
@@ -69,6 +82,37 @@ export function Conta() {
   useEffect(() => {
     if (usuario?.email) setNovoEmail(usuario.email)
   }, [usuario?.email])
+
+  useEffect(() => {
+    const proximo = escolhaDoDia(normalizarDiaInicio(usuario?.diaInicioPeriodo))
+    setCorte(proximo.escolha)
+    setOutroDia(proximo.outro)
+  }, [usuario?.diaInicioPeriodo])
+
+  const salvarCorte = async (e: FormEvent) => {
+    e.preventDefault()
+    setErroCorte(null)
+    setOkCorte(null)
+    const dia = diaDaEscolha(corte, outroDia)
+    if (dia == null) {
+      setErroCorte('Escolha um dia entre 1 e 28')
+      return
+    }
+    setSalvandoCorte(true)
+    try {
+      const res = await alterarPeriodoMes(dia)
+      atualizarUsuario({ diaInicioPeriodo: res.diaInicioPeriodo })
+      setOkCorte('O mês da análise foi atualizado para toda a empresa')
+    } catch (cause) {
+      setErroCorte(
+        cause instanceof Error
+          ? cause.message
+          : 'Não foi possível salvar o mês',
+      )
+    } finally {
+      setSalvandoCorte(false)
+    }
+  }
 
   const salvarSenha = async (e: FormEvent) => {
     e.preventDefault()
@@ -147,7 +191,7 @@ export function Conta() {
         </p>
         <h2 className="lanc-title">Configurações</h2>
         <p className="lanc-subtitle">
-          Altere sua senha e o e-mail de login/recuperação com segurança.
+          Altere a senha, o e-mail de login e como a empresa fecha o mês.
         </p>
       </header>
 
@@ -161,6 +205,49 @@ export function Conta() {
           <p className="conta-meta">Empresa {usuario?.empresaId}</p>
         </div>
       </section>
+
+      <form
+        className="conta-card glass fade-up"
+        onSubmit={(e) => void salvarCorte(e)}
+      >
+        <div className="conta-card-head">
+          <span className="conta-card-icon">
+            <CalendarRange size={18} />
+          </span>
+          <div>
+            <h3>Como você gostaria de configurar o mês?</h3>
+            <p>
+              Vale para o DRE e o caixa de toda a empresa. Qualquer usuário
+              pode ajustar.
+            </p>
+          </div>
+        </div>
+
+        <CorteMesField
+          escolha={corte}
+          outro={outroDia}
+          onEscolha={setCorte}
+          onOutro={setOutroDia}
+          name="corte-mes-conta"
+        />
+
+        {erroCorte && <p className="lanc-error">{erroCorte}</p>}
+        {okCorte && (
+          <p className="conta-ok">
+            <Check size={16} /> {okCorte}
+          </p>
+        )}
+
+        <button type="submit" className="btn btn-accent" disabled={salvandoCorte}>
+          {salvandoCorte ? (
+            <>
+              <Loader2 className="spin" size={16} /> Salvando…
+            </>
+          ) : (
+            'Salvar mês da análise'
+          )}
+        </button>
+      </form>
 
       <div className="conta-grid">
         <form

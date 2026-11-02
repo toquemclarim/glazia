@@ -2,7 +2,9 @@ import { ArrowLeft, ArrowRight, Eye, EyeOff } from 'lucide-react'
 import { useMemo, useState, type FormEvent } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { BrandLogo } from '../components/BrandLogo'
+import { CorteMesField } from '../components/CorteMesField'
 import { useApp } from '../context/AppContext'
+import { diaDaEscolha, type CorteEscolha } from '../utils/periodo'
 import { queueWelcomeScreen } from '../utils/welcome'
 
 function onlyDigits(v: string) {
@@ -42,6 +44,8 @@ export function CriarConta() {
   const [senha, setSenha] = useState('')
   const [confirmarSenha, setConfirmarSenha] = useState('')
   const [aceitouTermos, setAceitouTermos] = useState(false)
+  const [corte, setCorte] = useState<CorteEscolha | ''>('')
+  const [outroDia, setOutroDia] = useState('20')
   const [showSenha, setShowSenha] = useState(false)
   const [localErro, setLocalErro] = useState('')
 
@@ -87,6 +91,11 @@ export function CriarConta() {
       setLocalErro('Aceite os Termos de Uso e a Política de Privacidade.')
       return
     }
+    const diaInicioPeriodo = diaDaEscolha(corte, outroDia)
+    if (diaInicioPeriodo == null) {
+      setLocalErro('Escolha como você gostaria de configurar o mês.')
+      return
+    }
 
     const user = await signup({
       nomeFantasia: nomeFantasia.trim(),
@@ -99,6 +108,7 @@ export function CriarConta() {
       senha,
       confirmarSenha,
       aceitouTermos: true,
+      diaInicioPeriodo,
     })
 
     if (!user) return
@@ -198,6 +208,18 @@ export function CriarConta() {
               />
             </div>
           </div>
+
+          <p className="signup-group-title">Como você gostaria de configurar o mês?</p>
+          <p className="field-hint corte-mes-hint">
+            O DRE e o caixa usam esse recorte. Dá para mudar depois em
+            Configurações.
+          </p>
+          <CorteMesField
+            escolha={corte}
+            outro={outroDia}
+            onEscolha={setCorte}
+            onOutro={setOutroDia}
+          />
 
           <p className="signup-group-title">Dados de acesso</p>
 

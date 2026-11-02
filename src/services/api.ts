@@ -166,6 +166,7 @@ export type SignupPayload = {
   senha: string
   confirmarSenha: string
   aceitouTermos: boolean
+  diaInicioPeriodo: number
 }
 
 export async function signupApi(payload: SignupPayload): Promise<LoginResponse> {
@@ -177,6 +178,13 @@ export async function signupApi(payload: SignupPayload): Promise<LoginResponse> 
     },
     false,
   )
+}
+
+export async function alterarPeriodoMes(diaInicioPeriodo: number) {
+  return apiRequest<{ diaInicioPeriodo: number }>('/conta/periodo', {
+    method: 'PATCH',
+    body: JSON.stringify({ diaInicioPeriodo }),
+  })
 }
 
 export async function obterUsuario(): Promise<Usuario> {

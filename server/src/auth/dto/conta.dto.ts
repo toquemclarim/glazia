@@ -1,4 +1,5 @@
-import { IsEmail, IsString, MinLength } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsEmail, IsInt, IsString, Max, Min, MinLength } from 'class-validator';
 
 export class AlterarSenhaDto {
   @IsString()
@@ -12,6 +13,14 @@ export class AlterarSenhaDto {
   @IsString()
   @MinLength(6)
   confirmarSenha!: string;
+}
+
+export class AlterarPeriodoDto {
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(28)
+  diaInicioPeriodo!: number;
 }
 
 export class AlterarEmailDto {
