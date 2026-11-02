@@ -538,6 +538,7 @@ export class LancamentosService {
     );
 
     const custoRows = await this.db.query<{
+      id_custo: string;
       id_venda_item: string | null;
       valor_total_custo: number;
       quantidade: number | null;
@@ -545,14 +546,14 @@ export class LancamentosService {
       observacao: string | null;
       tipo_custo: string | null;
       linha_produto: string | null;
+      data_emissao_nf: string | null;
     }>(
       `
-      SELECT id_venda_item, valor_total_custo, quantidade, valor_unitario,
-             observacao, tipo_custo, linha_produto
+      SELECT id_custo, id_venda_item, valor_total_custo, quantidade, valor_unitario,
+             observacao, tipo_custo, linha_produto, data_emissao_nf
       FROM ${custos}
       WHERE id_empresa = @empresaId
         AND id_venda = @idVenda
-        AND id_venda_item IS NOT NULL
       ORDER BY criado_em
     `,
       { empresaId: auth.empresaId, idVenda },
@@ -588,12 +589,18 @@ export class LancamentosService {
         valorUnitario: number;
       }>
     >();
+    const custosDaVenda: Array<{
+      idCusto: string;
+      descricao: string;
+      dataCusto: string;
+      observacao: string | null;
+      quantidade: number;
+      valorUnitario: number;
+      valor: number;
+    }> = [];
     for (const c of custoRows) {
-      if (!c.id_venda_item) continue;
       const parsedCusto = parseObservacaoCusto(c.observacao);
-      const idCat = parsedCusto.idCustoCatalogo;
       const descricao = parsedCusto.descricao || 'Custo da venda';
-      const list = gastosPorItem.get(c.id_venda_item) ?? [];
       const valor = Number(c.valor_total_custo ?? 0);
       const quantidade =
         c.quantidade != null && Number(c.quantidade) > 0
@@ -603,8 +610,21 @@ export class LancamentosService {
         c.valor_unitario != null && Number.isFinite(Number(c.valor_unitario))
           ? Number(c.valor_unitario)
           : valor / quantidade;
+      if (!c.id_venda_item) {
+        custosDaVenda.push({
+          idCusto: c.id_custo,
+          descricao,
+          dataCusto: this.asDateString(c.data_emissao_nf),
+          observacao: parsedCusto.observacao,
+          quantidade,
+          valorUnitario,
+          valor,
+        });
+        continue;
+      }
+      const list = gastosPorItem.get(c.id_venda_item) ?? [];
       list.push({
-        idCustoCatalogo: idCat ?? 0,
+        idCustoCatalogo: parsedCusto.idCustoCatalogo ?? 0,
         descricao,
         tipoCusto: c.tipo_custo,
         linha: c.linha_produto,
@@ -705,7 +725,9 @@ export class LancamentosService {
     });
 
     const faturamento = itensDetalhe.reduce((a, i) => a + i.faturamento, 0);
-    const gastos = itensDetalhe.reduce((a, i) => a + i.gastosTotal, 0);
+    const gastosItens = itensDetalhe.reduce((a, i) => a + i.gastosTotal, 0);
+    const gastosAvulsos = custosDaVenda.reduce((a, c) => a + c.valor, 0);
+    const gastos = gastosItens + gastosAvulsos;
     const lucro = faturamento - gastos;
     const margemPercentual = faturamento > 0 ? (lucro / faturamento) * 100 : 0;
 
@@ -729,9 +751,12 @@ export class LancamentosService {
         gastos,
         lucro,
         margemPercentual,
-        temGastosLancados: itensDetalhe.some((i) => i.temGastosLancados),
+        temGastosLancados:
+          itensDetalhe.some((i) => i.temGastosLancados) ||
+          custosDaVenda.length > 0,
       },
       itens: itensDetalhe,
+      custosDaVenda,
     };
   }
 
@@ -1090,14 +1115,26 @@ export class LancamentosService {
     const dataCusto = dto.dataCusto ?? todayIsoDate();
     const agora = new Date().toISOString();
 
+    let mensagem = 'Custo incluído em estoque e gravado no analytics';
     if (dto.associadoAVenda) {
       if (!dto.idVenda) {
         throw new NotFoundException('Informe a venda para associar o custo');
       }
-      const existe = await this.vendaExiste(auth.empresaId, dto.idVenda);
-      if (!existe) {
+      const venda = await this.resumoVendaParaCusto(
+        auth.empresaId,
+        dto.idVenda,
+      );
+      if (!venda) {
         throw new NotFoundException('Venda não encontrada para esta empresa');
       }
+      const cliente = venda.cliente?.trim() || 'cliente';
+      const dataBr = this.asDateString(venda.data_venda)
+        .split('-')
+        .reverse()
+        .join('/');
+      mensagem = dataBr
+        ? `Custo associado à venda de ${cliente} (${dataBr}). Ele aparece nessa venda e na lista de custos.`
+        : `Custo associado à venda de ${cliente}. Ele aparece nessa venda e na lista de custos.`;
     }
 
     const row = this.buildCustoRow(auth, {
@@ -1131,27 +1168,36 @@ export class LancamentosService {
       associadoAVenda: dto.associadoAVenda,
       idVenda: dto.idVenda ?? null,
       destino: dto.associadoAVenda ? 'VENDA' : 'ESTOQUE',
-      mensagem: dto.associadoAVenda
-        ? 'Custo associado à venda e gravado no analytics'
-        : 'Custo incluído em estoque e gravado no analytics',
+      mensagem,
     };
   }
 
-  /** Custos avulsos (estoque): id_venda IS NULL. */
+  /** Custos avulsos: estoque e custos da venda (id_venda_item nulo). */
   async listarCustosEstoque(
     auth: AuthContext,
     query: ListarCustosEstoqueQueryDto,
   ) {
     this.assertOperador(auth);
     const custos = this.db.table('fato_custos_operacionais');
+    const vendas = this.db.table('fato_venda');
+    const clientes = this.db.table('dim_cliente');
     const mes = query.mes?.trim() || currentMonthLocal();
     const { mesInicio, mesFim } = monthRangeLocal(mes);
     const search = query.q?.trim() ?? '';
+    const vinculo = query.vinculo ?? 'todos';
     const params: Record<string, unknown> = {
       empresaId: auth.empresaId,
       mesInicio,
       mesFim,
     };
+
+    let vinculoSql = 'AND c.id_venda_item IS NULL';
+    if (vinculo === 'estoque') {
+      vinculoSql = 'AND c.id_venda IS NULL AND c.id_venda_item IS NULL';
+    } else if (vinculo === 'venda') {
+      vinculoSql =
+        'AND c.id_venda IS NOT NULL AND c.id_venda_item IS NULL';
+    }
 
     let searchSql = '';
     if (search) {
@@ -1161,12 +1207,14 @@ export class LancamentosService {
           COALESCE(c.observacao, '') ILIKE @q
           OR COALESCE(c.tipo_custo, '') ILIKE @q
           OR COALESCE(c.linha_produto, '') ILIKE @q
+          OR COALESCE(cl.nome, '') ILIKE @q
         )
       `;
     }
 
     const rows = await this.db.query<{
       id_custo: string;
+      id_venda: string | null;
       data_emissao_nf: string | null;
       tipo_custo: string | null;
       linha_produto: string | null;
@@ -1174,22 +1222,31 @@ export class LancamentosService {
       valor_unitario: number | null;
       valor_total_custo: number;
       observacao: string | null;
+      cliente: string | null;
+      data_venda: string | null;
     }>(
       `
       SELECT
         c.id_custo,
+        c.id_venda,
         c.data_emissao_nf,
         c.tipo_custo,
         c.linha_produto,
         c.quantidade,
         c.valor_unitario,
         c.valor_total_custo,
-        c.observacao
+        c.observacao,
+        cl.nome AS cliente,
+        v.data_venda
       FROM ${custos} c
+      LEFT JOIN ${vendas} v
+        ON v.id_venda = c.id_venda AND v.id_empresa = c.id_empresa
+      LEFT JOIN ${clientes} cl
+        ON cl.id_cliente = v.id_cliente AND cl.id_empresa = v.id_empresa
       WHERE c.id_empresa = @empresaId
-        AND c.id_venda IS NULL
         AND c.data_emissao_nf >= @mesInicio
         AND c.data_emissao_nf < @mesFim
+        ${vinculoSql}
         ${searchSql}
       ORDER BY c.data_emissao_nf DESC, c.criado_em DESC
       LIMIT 200
@@ -1206,11 +1263,7 @@ export class LancamentosService {
   async obterCustoEstoque(auth: AuthContext, idCusto: string) {
     this.assertOperador(auth);
     const row = await this.buscarCustoEstoqueOuFalhar(auth.empresaId, idCusto);
-    if (row.id_venda) {
-      throw new BadRequestException(
-        'Este custo está ligado a uma venda. Consulte pela venda.',
-      );
-    }
+    this.assertCustoAvulso(row);
     return this.mapCustoEstoqueDetalhe(row);
   }
 
@@ -1221,11 +1274,7 @@ export class LancamentosService {
   ) {
     this.assertOperador(auth);
     const row = await this.buscarCustoEstoqueOuFalhar(auth.empresaId, idCusto);
-    if (row.id_venda) {
-      throw new BadRequestException(
-        'Este custo está ligado a uma venda. Edite pela venda.',
-      );
-    }
+    this.assertCustoAvulso(row);
 
     const { quantidade, valorUnitario, valorTotal } = valoresDoGasto({
       quantidade: dto.quantidade,
@@ -1271,18 +1320,16 @@ export class LancamentosService {
       quantidade,
       valorUnitario,
       valor: valorTotal,
-      mensagem: 'Custo de estoque atualizado',
+      mensagem: row.id_venda
+        ? 'Custo da venda atualizado'
+        : 'Custo de estoque atualizado',
     };
   }
 
   async excluirCustoEstoque(auth: AuthContext, idCusto: string) {
     this.assertOperador(auth);
     const row = await this.buscarCustoEstoqueOuFalhar(auth.empresaId, idCusto);
-    if (row.id_venda) {
-      throw new BadRequestException(
-        'Este custo está ligado a uma venda. Exclua pela venda.',
-      );
-    }
+    this.assertCustoAvulso(row);
 
     const custos = this.db.table('fato_custos_operacionais');
     await this.db.remove(custos, {
@@ -1290,14 +1337,30 @@ export class LancamentosService {
       id_empresa: auth.empresaId,
     });
 
-    return { idCusto, mensagem: 'Custo de estoque excluído' };
+    return {
+      idCusto,
+      mensagem: row.id_venda
+        ? 'Custo removido da venda e da análise'
+        : 'Custo de estoque excluído',
+    };
+  }
+
+  private assertCustoAvulso(row: { id_venda_item: string | null }) {
+    if (row.id_venda_item) {
+      throw new BadRequestException(
+        'Este custo faz parte de um item da venda. Edite pela venda.',
+      );
+    }
   }
 
   private async buscarCustoEstoqueOuFalhar(empresaId: string, idCusto: string) {
     const custos = this.db.table('fato_custos_operacionais');
+    const vendas = this.db.table('fato_venda');
+    const clientes = this.db.table('dim_cliente');
     const [row] = await this.db.query<{
       id_custo: string;
       id_venda: string | null;
+      id_venda_item: string | null;
       data_emissao_nf: string | null;
       tipo_custo: string | null;
       linha_produto: string | null;
@@ -1305,13 +1368,20 @@ export class LancamentosService {
       valor_unitario: number | null;
       valor_total_custo: number;
       observacao: string | null;
+      cliente: string | null;
+      data_venda: string | null;
     }>(
       `
       SELECT
-        id_custo, id_venda, data_emissao_nf, tipo_custo, linha_produto,
-        quantidade, valor_unitario, valor_total_custo, observacao
-      FROM ${custos}
-      WHERE id_empresa = @empresaId AND id_custo = @idCusto
+        c.id_custo, c.id_venda, c.id_venda_item, c.data_emissao_nf, c.tipo_custo,
+        c.linha_produto, c.quantidade, c.valor_unitario, c.valor_total_custo,
+        c.observacao, cl.nome AS cliente, v.data_venda
+      FROM ${custos} c
+      LEFT JOIN ${vendas} v
+        ON v.id_venda = c.id_venda AND v.id_empresa = c.id_empresa
+      LEFT JOIN ${clientes} cl
+        ON cl.id_cliente = v.id_cliente AND cl.id_empresa = v.id_empresa
+      WHERE c.id_empresa = @empresaId AND c.id_custo = @idCusto
       LIMIT 1
     `,
       { empresaId, idCusto },
@@ -1324,6 +1394,7 @@ export class LancamentosService {
 
   private mapCustoEstoqueResumo(r: {
     id_custo: string;
+    id_venda?: string | null;
     data_emissao_nf: string | null;
     tipo_custo: string | null;
     linha_produto: string | null;
@@ -1331,6 +1402,8 @@ export class LancamentosService {
     valor_unitario: number | null;
     valor_total_custo: number;
     observacao: string | null;
+    cliente?: string | null;
+    data_venda?: string | null;
   }) {
     const valor = Number(r.valor_total_custo ?? 0);
     const quantidade =
@@ -1344,6 +1417,7 @@ export class LancamentosService {
     const parsed = parseObservacaoCusto(r.observacao);
     const descricao = parsed.descricao;
     const dataCusto = this.asDateString(r.data_emissao_nf);
+    const dataVenda = this.asDateString(r.data_venda ?? null);
     return {
       idCusto: r.id_custo,
       dataCusto,
@@ -1355,11 +1429,16 @@ export class LancamentosService {
       valorUnitario,
       valor,
       idCustoCatalogo: parsed.idCustoCatalogo,
+      associadoAVenda: Boolean(r.id_venda),
+      idVenda: r.id_venda ?? null,
+      cliente: r.cliente?.trim() || null,
+      dataVenda: dataVenda || null,
       rotulo: [
         dataCusto ? dataCusto.split('-').reverse().join('/') : null,
         r.tipo_custo,
         descricao,
         parsed.observacao,
+        r.cliente?.trim() || null,
         `R$ ${valor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
       ]
         .filter(Boolean)
@@ -1377,12 +1456,36 @@ export class LancamentosService {
     valor_unitario: number | null;
     valor_total_custo: number;
     observacao: string | null;
+    cliente?: string | null;
+    data_venda?: string | null;
   }) {
+    const resumo = this.mapCustoEstoqueResumo(r);
     return {
-      ...this.mapCustoEstoqueResumo(r),
+      ...resumo,
       associadoAVenda: Boolean(r.id_venda),
       idVenda: r.id_venda,
     };
+  }
+
+  private async resumoVendaParaCusto(empresaId: string, idVenda: string) {
+    const vendas = this.db.table('fato_venda');
+    const clientes = this.db.table('dim_cliente');
+    const [row] = await this.db.query<{
+      id_venda: string;
+      data_venda: string | null;
+      cliente: string | null;
+    }>(
+      `
+      SELECT v.id_venda, v.data_venda, c.nome AS cliente
+      FROM ${vendas} v
+      LEFT JOIN ${clientes} c
+        ON c.id_cliente = v.id_cliente AND c.id_empresa = v.id_empresa
+      WHERE v.id_empresa = @empresaId AND v.id_venda = @idVenda
+      LIMIT 1
+    `,
+      { empresaId, idVenda },
+    );
+    return row ?? null;
   }
 
   private async vendaExiste(empresaId: string, idVenda: string) {

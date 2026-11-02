@@ -6410,6 +6410,16 @@ table.data tr:hover td {
   color: var(--text-muted);
 }
 
+.av-custos-venda {
+  margin-top: 1rem;
+  padding-top: 0.15rem;
+}
+
+.av-custos-venda h4 {
+  margin: 0.85rem 0 0;
+  font-size: 0.95rem;
+}
+
 .av-gastos {
   list-style: none;
   margin: 0.85rem 0 0;

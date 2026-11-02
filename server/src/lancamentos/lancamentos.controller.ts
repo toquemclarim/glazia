@@ -67,7 +67,7 @@ export class LancamentosController {
     return this.lancamentosService.excluirVenda(auth, id);
   }
 
-  /** Custos de estoque (sem venda). Listar antes de :id. */
+  /** Custos avulsos do mês (estoque e associados a venda). Listar antes de :id. */
   @Get('custos')
   listarCustosEstoque(
     @CurrentAuth() auth: AuthContext,

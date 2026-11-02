@@ -321,7 +321,7 @@ export function Lancamentos() {
               </span>
               <span className="lanc-choice-copy">
                 <strong>Gerenciar custos</strong>
-                <span>Histórico de custos de estoque (sem venda)</span>
+                <span>Estoque e custos associados a vendas</span>
               </span>
             </button>
           </div>

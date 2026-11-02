@@ -198,7 +198,7 @@ export class CalendarioVendasQueryDto {
   mes?: string;
 }
 
-/** Custos de estoque (id_venda IS NULL). */
+/** Custos avulsos do mês: todos, só estoque ou só associados a venda. */
 export class ListarCustosEstoqueQueryDto {
   @IsOptional()
   @IsString()
@@ -208,6 +208,11 @@ export class ListarCustosEstoqueQueryDto {
   @IsOptional()
   @Matches(/^\d{4}-\d{2}$/)
   mes?: string;
+
+  /** todos = estoque e venda; estoque = sem venda; venda = associado à venda. */
+  @IsOptional()
+  @IsIn(['todos', 'estoque', 'venda'])
+  vinculo?: 'todos' | 'estoque' | 'venda';
 }
 
 export class AtualizarCustoEstoqueDto {

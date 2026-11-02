@@ -19,6 +19,23 @@ import type {
   VendaResumo,
 } from '../types'
 
+function dataBr(iso?: string | null) {
+  if (!iso) return ''
+  const [ano, mes, dia] = iso.slice(0, 10).split('-')
+  return dia && mes && ano ? `${dia}/${mes}/${ano}` : iso
+}
+
+function etiquetaVenda(c: {
+  associadoAVenda?: boolean
+  cliente?: string | null
+  dataVenda?: string | null
+}) {
+  if (!c.associadoAVenda) return ''
+  return [c.cliente?.trim(), dataBr(c.dataVenda)].filter(Boolean).join(' · ')
+}
+
+type VinculoCusto = 'todos' | 'estoque' | 'venda'
+
 function money(value: number) {
   return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 }
@@ -115,6 +132,7 @@ export function GerenciarCustos({
 }) {
   const [busca, setBusca] = useState('')
   const [mes, setMes] = useState(currentMonthInput())
+  const [vinculo, setVinculo] = useState<VinculoCusto>('todos')
   const [itens, setItens] = useState<CustoEstoqueResumo[]>([])
   const [loading, setLoading] = useState(true)
   const [confirmId, setConfirmId] = useState<string | null>(null)
@@ -125,7 +143,7 @@ export function GerenciarCustos({
     const t = window.setTimeout(() => {
       setLoading(true)
       setErro(null)
-      listarCustosEstoqueLancamento({ q: busca, mes })
+      listarCustosEstoqueLancamento({ q: busca, mes, vinculo })
         .then((res) => {
           if (!alive) return
           setItens(res.itens)
@@ -145,7 +163,7 @@ export function GerenciarCustos({
       alive = false
       window.clearTimeout(t)
     }
-  }, [busca, mes, setErro])
+  }, [busca, mes, vinculo, setErro])
 
   const alvo = itens.find((c) => c.idCusto === confirmId)
 
@@ -195,6 +213,18 @@ export function GerenciarCustos({
             onChange={(e) => setMes(e.target.value)}
           />
         </div>
+        <div className="field">
+          <label htmlFor="gerenciar-custo-vinculo">Mostrar</label>
+          <select
+            id="gerenciar-custo-vinculo"
+            value={vinculo}
+            onChange={(e) => setVinculo(e.target.value as VinculoCusto)}
+          >
+            <option value="todos">Todos</option>
+            <option value="estoque">Estoque</option>
+            <option value="venda">Vendas</option>
+          </select>
+        </div>
       </div>
 
       {loading ? (
@@ -202,7 +232,13 @@ export function GerenciarCustos({
           <Loader2 className="spin" size={16} /> Carregando custos…
         </p>
       ) : itens.length === 0 ? (
-        <p className="lanc-muted">Nenhum custo de estoque neste mês.</p>
+        <p className="lanc-muted">
+          {vinculo === 'estoque'
+            ? 'Nenhum custo de estoque neste mês.'
+            : vinculo === 'venda'
+              ? 'Nenhum custo associado a venda neste mês.'
+              : 'Nenhum custo neste mês.'}
+        </p>
       ) : (
         <ul className="home-venc-list" style={{ margin: 0 }}>
           {itens.map((c) => (
@@ -217,6 +253,7 @@ export function GerenciarCustos({
                     .join(' · ')}
                   {` · ${c.quantidade.toLocaleString('pt-BR')} × ${money(c.valorUnitario)}`}
                   {c.observacao ? ` · ${c.observacao}` : ''}
+                  {etiquetaVenda(c) ? ` · ${etiquetaVenda(c)}` : ''}
                 </span>
               </div>
               <div style={{ display: 'flex', gap: '0.35rem' }}>
@@ -258,7 +295,10 @@ export function GerenciarCustos({
               <strong>
                 {alvo.descricao} · {money(alvo.valor)}
               </strong>
-              ? Esta ação remove o lançamento do estoque e da análise.
+              ?{' '}
+              {alvo.associadoAVenda
+                ? 'Esta ação remove o lançamento dessa venda e da análise.'
+                : 'Esta ação remove o lançamento do estoque e da análise.'}
             </p>
             <div className="df-form-actions">
               <button
@@ -323,6 +363,7 @@ export function FormCusto({
   const [linhasCustoOpts, setLinhasCustoOpts] = useState<string[]>([])
   const [dataCusto, setDataCusto] = useState(hojeBrasil)
   const [observacao, setObservacao] = useState('')
+  const [vendaAssociada, setVendaAssociada] = useState<string | null>(null)
 
   const isOutros = tipo.toUpperCase() === 'OUTROS'
 
@@ -348,6 +389,9 @@ export function FormCusto({
         if ((det.tipoCusto ?? '').toUpperCase() === 'OUTROS') {
           setItemLivre(det.descricao)
         }
+        setVendaAssociada(
+          det.associadoAVenda ? etiquetaVenda(det) || 'venda selecionada' : null,
+        )
         setAssociar(false)
       } catch (e) {
         if (alive) {
@@ -702,41 +746,47 @@ export function FormCusto({
               </label>
 
               {associar ? (
-                <fieldset className="lanc-fieldset soft">
-                  <legend>Venda</legend>
-                  <div className="field">
-                    <label htmlFor="busca-venda">Pesquisar</label>
-                    <input
-                      id="busca-venda"
-                      value={buscaVenda}
-                      onChange={(e) => setBuscaVenda(e.target.value)}
-                      placeholder="Cliente, linha, observação…"
-                    />
-                  </div>
-                  <div className="field">
-                    <label htmlFor="venda-sel">Selecionar venda</label>
-                    <SearchableSelect
-                      id="venda-sel"
-                      value={idVenda}
-                      required={associar}
-                      placeholder="Busque a venda…"
-                      options={vendas.map((v) => ({
-                        value: v.idVenda,
-                        label:
-                          v.rotulo ||
-                          [
-                            v.dataVenda.split('-').reverse().join('/'),
-                            money(v.valorTotal),
-                            v.cliente,
-                            v.resumo,
-                          ]
-                            .filter(Boolean)
-                            .join(' · '),
-                      }))}
-                      onChange={setIdVenda}
-                    />
-                  </div>
-                </fieldset>
+                <>
+                  <fieldset className="lanc-fieldset soft">
+                    <legend>Venda</legend>
+                    <div className="field">
+                      <label htmlFor="busca-venda">Pesquisar</label>
+                      <input
+                        id="busca-venda"
+                        value={buscaVenda}
+                        onChange={(e) => setBuscaVenda(e.target.value)}
+                        placeholder="Cliente, linha, observação…"
+                      />
+                    </div>
+                    <div className="field">
+                      <label htmlFor="venda-sel">Selecionar venda</label>
+                      <SearchableSelect
+                        id="venda-sel"
+                        value={idVenda}
+                        required={associar}
+                        placeholder="Busque a venda…"
+                        options={vendas.map((v) => ({
+                          value: v.idVenda,
+                          label:
+                            v.rotulo ||
+                            [
+                              v.dataVenda.split('-').reverse().join('/'),
+                              money(v.valorTotal),
+                              v.cliente,
+                              v.resumo,
+                            ]
+                              .filter(Boolean)
+                              .join(' · '),
+                        }))}
+                        onChange={setIdVenda}
+                      />
+                    </div>
+                  </fieldset>
+                  <p className="lanc-muted">
+                    Aparece nessa venda e na lista de custos, marcado com o
+                    cliente.
+                  </p>
+                </>
               ) : (
                 <p className="lanc-muted">
                   Sem associação → custo vai para estoque.
@@ -746,12 +796,20 @@ export function FormCusto({
           )}
 
           {editando && (
-            <p className="lanc-muted">
-              Só é possível alterar quantidade, valor unitário, data e
-              observações
-              {isOutros ? ' e a descrição' : ''}. O tipo e o item do catálogo
-              permanecem.
-            </p>
+            <>
+              {vendaAssociada && (
+                <p className="lanc-muted">
+                  Associado à venda {vendaAssociada}. A venda permanece nesta
+                  edição.
+                </p>
+              )}
+              <p className="lanc-muted">
+                Só é possível alterar quantidade, valor unitário, data e
+                observações
+                {isOutros ? ' e a descrição' : ''}. O tipo e o item do catálogo
+                permanecem.
+              </p>
+            </>
           )}
 
           <div className="lanc-form-footer">

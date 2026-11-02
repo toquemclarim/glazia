@@ -543,10 +543,12 @@ export async function criarCustoLancamento(payload: CriarCustoPayload) {
 export async function listarCustosEstoqueLancamento(opts?: {
   q?: string
   mes?: string
+  vinculo?: 'todos' | 'estoque' | 'venda'
 }) {
   const qs = new URLSearchParams()
   if (opts?.q?.trim()) qs.set('q', opts.q.trim())
   if (opts?.mes) qs.set('mes', opts.mes)
+  if (opts?.vinculo) qs.set('vinculo', opts.vinculo)
   const suffix = qs.toString() ? `?${qs}` : ''
   return apiRequest<{ mes: string; itens: CustoEstoqueResumo[] }>(
     `/lancamentos/custos${suffix}`,

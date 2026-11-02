@@ -626,6 +626,30 @@ export function AnaliseVendas() {
                   )
                 })}
               </div>
+
+              {detalhe.custosDaVenda && detalhe.custosDaVenda.length > 0 && (
+                <section className="av-custos-venda">
+                  <h4>Custos desta venda</h4>
+                  <ul className="av-gastos">
+                    {detalhe.custosDaVenda.map((c) => (
+                      <li key={c.idCusto}>
+                        <span>
+                          {c.descricao}
+                          {c.dataCusto ? ` · ${formatDate(c.dataCusto)}` : ''}
+                          {c.observacao ? ` · ${c.observacao}` : ''}
+                        </span>
+                        <span className="av-gasto-valores">
+                          <small>
+                            {c.quantidade.toLocaleString('pt-BR')} ×{' '}
+                            {formatCurrency(c.valorUnitario)}
+                          </small>
+                          <strong>{formatCurrency(c.valor)}</strong>
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              )}
             </>
           )}
         </section>

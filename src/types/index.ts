@@ -115,6 +115,10 @@ export interface CustoEstoqueResumo {
   valor: number
   idCustoCatalogo?: number
   rotulo?: string
+  associadoAVenda?: boolean
+  idVenda?: string | null
+  cliente?: string | null
+  dataVenda?: string | null
 }
 
 export interface CustoEstoqueDetalhe extends CustoEstoqueResumo {
@@ -381,6 +385,16 @@ export interface VendaResumo {
   rotulo: string
 }
 
+export interface CustoDaVenda {
+  idCusto: string
+  descricao: string
+  dataCusto: string
+  observacao: string | null
+  quantidade: number
+  valorUnitario: number
+  valor: number
+}
+
 export interface VendaGastoDetalhe {
   idCustoCatalogo: number
   descricao: string
@@ -435,6 +449,7 @@ export interface VendaDetalhe {
     temGastosLancados: boolean
   }
   itens: VendaItemDetalhe[]
+  custosDaVenda?: CustoDaVenda[]
 }
 
 export interface CalendarioVendas {
