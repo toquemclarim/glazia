@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Eye, EyeOff, Moon, Sun } from 'lucide-react'
+import { AppVersion } from '../components/AppVersion'
 import { BrandLogo } from '../components/BrandLogo'
 import { useApp } from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
@@ -117,6 +118,9 @@ export function Login() {
         <p className="login-hint">
           Ainda não tem conta?{' '}
           <Link to="/criar-conta">Criar conta gratuitamente</Link>
+        </p>
+        <p className="login-version">
+          <AppVersion />
         </p>
       </div>
     </div>

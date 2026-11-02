@@ -20,6 +20,7 @@ import { useApp } from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
 import { onTourAction } from '../tour/events'
 import { AiChat } from './AiChat'
+import { AppVersion } from './AppVersion'
 import { BrandLogo } from './BrandLogo'
 import { GuidedTour } from './GuidedTour'
 import { TrialBanner } from './TrialBanner'
@@ -211,6 +212,7 @@ export function Layout({ children }: { children: ReactNode }) {
             <h1>{TITLES[location.pathname] ?? 'Início'}</h1>
           </div>
           <div className="topbar-actions">
+            <AppVersion />
             <button
               className="btn-icon"
               onClick={toggle}
